@@ -1,0 +1,9 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "linux": {
+      "deb": { "depends": ["aria2"] },
+      "rpm": { "depends": ["aria2"] }
+    }
+  }
+}
