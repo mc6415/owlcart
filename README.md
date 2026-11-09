@@ -22,6 +22,18 @@
 </p>
 
 <p align="center">
+  <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/Rust-B7410E?logo=rust&logoColor=white" alt="Rust" /></a>
+  <a href="https://v2.tauri.app"><img src="https://img.shields.io/badge/Tauri_2-24C8D8?logo=tauri&logoColor=white" alt="Tauri 2" /></a>
+  <a href="https://svelte.dev"><img src="https://img.shields.io/badge/Svelte_5-FF3E00?logo=svelte&logoColor=white" alt="Svelte 5" /></a>
+  <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
+  <a href="https://vite.dev"><img src="https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white" alt="Vite" /></a>
+  <a href="https://aria2.github.io"><img src="https://img.shields.io/badge/aria2-downloads-555" alt="aria2" /></a>
+  <br />
+  <img src="https://img.shields.io/badge/Windows-0078D4?logo=windows&logoColor=white" alt="Windows" />
+  <img src="https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black" alt="Linux" />
+</p>
+
+<p align="center">
   <img src="docs/screenshots/grid.jpg" alt="Owlcart showing the GameCube library in grid view, with region filters and cover art" />
 </p>
 

@@ -40,6 +40,19 @@ export function parseName(name: string): ParsedName {
   return { title: base.slice(0, i), tags, regions };
 }
 
+/**
+ * Tags that mark something other than a finished game: demos, betas and
+ * prototypes, test programs, bootlegs and bonus discs. Unlicensed (Unl) and
+ * homebrew (Aftermarket) releases are real games, so they're not included.
+ */
+const EXTRA_TAG =
+  /^(demo|trade demo|rolling demo|kiosk|taikenban|sample|trial|preview|promo|beta|alpha|proto|prototype|build|debug|program|test program|music program|pirate|bonus disc)\b/i;
+
+/** True for demos, betas, prototypes and other non-game files. */
+export function isExtra(p: ParsedName): boolean {
+  return p.tags.some((t) => EXTRA_TAG.test(t.trim()));
+}
+
 /** File name without its last extension: "Halo 3 (USA).zip" -> "Halo 3 (USA)". */
 export function fileStem(name: string): string {
   return name.replace(/\.[^./\\]+$/, "");

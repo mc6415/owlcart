@@ -115,7 +115,7 @@ export function formatEta(remaining: number, speed: number): string {
   return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
 }
 
-export { parseName, listingSlug, fileStem, type ParsedName } from "./names.ts";
+export { parseName, listingSlug, fileStem, isExtra, type ParsedName } from "./names.ts";
 
 /** IGDB details from the published <slug>.details.json manifest. */
 export interface GameDetails {

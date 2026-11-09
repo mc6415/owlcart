@@ -8,7 +8,7 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { openUrl } from "@tauri-apps/plugin-opener";
   import { resetCovers } from "$lib/covers.svelte";
-  import { api, fileStem, formatBytes, listingSlug, parseName, type FetchStatus, type Entry, type Job, type Listing, type Settings } from "$lib/api";
+  import { api, fileStem, formatBytes, isExtra, listingSlug, parseName, type FetchStatus, type Entry, type Job, type Listing, type Settings } from "$lib/api";
   import GameList from "$lib/GameList.svelte";
   import GameGrid from "$lib/GameGrid.svelte";
   import DownloadsButton from "$lib/DownloadsButton.svelte";
@@ -61,6 +61,22 @@
     }
   }
   let view = $state<View>(savedView());
+
+  // "Games only": hide demos, betas, prototypes and other extras.
+  function savedGamesOnly(): boolean {
+    try {
+      return localStorage.getItem("gamesOnly") === "1";
+    } catch {
+      return false;
+    }
+  }
+  let gamesOnly = $state(savedGamesOnly());
+  function setGamesOnly(on: boolean) {
+    gamesOnly = on;
+    try {
+      localStorage.setItem("gamesOnly", on ? "1" : "0");
+    } catch {}
+  }
   function setView(v: View) {
     view = v;
     try {
@@ -89,6 +105,7 @@
     [`${mod} A`, "Select all shown"],
     [`${mod} Enter`, "Download selected (or the highlighted game)"],
     ["V", "Switch list / grid"],
+    ["G", "Games only (hide demos, betas, prototypes)"],
     ["D", "Downloads"],
     [`${mod} ,`, "Settings"],
     ["Esc", "Close, clear the filter, then the selection"],
@@ -165,6 +182,10 @@
       case "v":
       case "V":
         setView(view === "grid" ? "list" : "grid");
+        break;
+      case "g":
+      case "G":
+        setGamesOnly(!gamesOnly);
         break;
       case "d":
       case "D":
@@ -286,9 +307,15 @@
   });
   let hiddenNoArt = $derived((listing?.entries.length ?? 0) - artFiltered.length);
 
+  /** Minus demos, betas and other extras when "Games only" is on. */
+  let gameFiltered = $derived(
+    gamesOnly ? artFiltered.filter((e) => e.kind === "folder" || !isExtra(parseName(e.name))) : artFiltered,
+  );
+  let hiddenExtras = $derived(artFiltered.length - gameFiltered.length);
+
   let textMatched = $derived.by(() => {
     const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-    return artFiltered.filter((e) => {
+    return gameFiltered.filter((e) => {
       const n = e.name.toLowerCase();
       return words.every((w) => n.includes(w));
     });
@@ -543,6 +570,16 @@
               {/if}
             {/each}
           </nav>
+          <button
+            class="toggle"
+            class:on={gamesOnly}
+            aria-pressed={gamesOnly}
+            title="Hide demos, betas, prototypes and other extras (G)"
+            onclick={() => setGamesOnly(!gamesOnly)}
+          >
+            {#if gamesOnly}<Icon name="check" size={13} />{/if}
+            Games only
+          </button>
           <div class="seg" role="group" aria-label="View">
             <button class:on={view === "list"} title="List view (V)" onclick={() => setView("list")}>
               <Icon name="list" size={15} />
@@ -596,6 +633,8 @@
             <span class="count">
               {visibleFiles.length.toLocaleString()} files{folderCount ? `, ${folderCount} folders` : ""}{hiddenNoArt
                 ? ` · ${hiddenNoArt.toLocaleString()} without art hidden`
+                : ""}{hiddenExtras
+                ? ` · ${hiddenExtras.toLocaleString()} demos & betas hidden`
                 : ""}
             </span>
           </button>
@@ -1146,6 +1185,29 @@
   }
   .sep {
     color: var(--line);
+  }
+  .toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 28px;
+    padding: 0 11px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: none;
+    color: var(--muted);
+    font-size: 12px;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .toggle:hover {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+  .toggle.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
   }
   .seg {
     display: flex;
