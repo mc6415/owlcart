@@ -1,0 +1,303 @@
+[
+  {
+    "group": "Nintendo",
+    "name": "NES",
+    "folder": "nes",
+    "listing": "https://minerva-archive.org/browse/No-Intro/Nintendo%20-%20Nintendo%20Entertainment%20System%20%28Headered%29/",
+    "igdb": "nes"
+  },
+  {
+    "group": "Nintendo",
+    "name": "Famicom Disk System",
+    "folder": "fds",
+    "listing": "https://minerva-archive.org/browse/No-Intro/Nintendo%20-%20Family%20Computer%20Disk%20System%20%28FDS%29/",
+    "igdb": "fds"
+  },
+  {
+    "group": "Nintendo",
+    "name": "SNES",
+    "folder": "snes",
+    "listing": "https://minerva-archive.org/browse/No-Intro/Nintendo%20-%20Super%20Nintendo%20Entertainment%20System/",
+    "igdb": "snes"
+  },
+  {
+    "group": "Nintendo",
+    "name": "Virtual Boy",
+    "folder": "virtualboy",
+    "listing": "https://minerva-archive.org/browse/No-Intro/Nintendo%20-%20Virtual%20Boy/",
+    "igdb": "virtualboy"
+  },
+  {
+    "group": "Nintendo",
+    "name": "Nintendo 64",
+    "folder": "n64",
+    "listing": "https://minerva-archive.org/browse/No-Intro/Nintendo%20-%20Nintendo%2064%20%28BigEndian%29/",
+    "igdb": "n64"
+  },
+  {
+    "group": "Nintendo",
+    "name": "Game Boy",
+    "folder": "gb",
+    "listing": "https://minerva-archive.org/browse/No-Intro/Nintendo%20-%20Game%20Boy/",
+    "igdb": "gb"
+  },
+  {
+    "group": "Nintendo",
+    "name": "Game Boy Color",
+    "folder": "gbc",
+    "listing": "https://minerva-archive.org/browse/No-Intro/Nintendo%20-%20Game%20Boy%20Color/",
+    "igdb": "gbc"
+  },
+  {
+    "group": "Nintendo",
+    "name": "Game Boy Advance",
+    "folder": "gba",
+    "listing": "https://minerva-archive.org/browse/No-Intro/Nintendo%20-%20Game%20Boy%20Advance/",
+    "igdb": "gba"
+  },
+  {
+    "group": "Nintendo",
+    "name": "GameCube",
+    "folder": "gc",
+    "listing": "https://minerva-archive.org/browse/Redump/Nintendo%20-%20GameCube%20-%20NKit%20RVZ%20%5Bzstd-19-128k%5D/",
+    "igdb": "ngc"
+  },
+  {
+    "group": "Nintendo",
+    "name": "Nintendo DS",
+    "folder": "nds",
+    "listing": "https://minerva-archive.org/browse/No-Intro/Nintendo%20-%20Nintendo%20DS%20%28Decrypted%29/",
+    "igdb": "nds"
+  },
+  {
+    "group": "Nintendo",
+    "name": "Wii",
+    "folder": "wii",
+    "listing": "https://minerva-archive.org/browse/Redump/Nintendo%20-%20Wii%20-%20NKit%20RVZ%20%5Bzstd-19-128k%5D/",
+    "igdb": "wii"
+  },
+  {
+    "group": "Nintendo",
+    "name": "Nintendo 3DS",
+    "folder": "n3ds",
+    "listing": "https://minerva-archive.org/browse/No-Intro/Nintendo%20-%20Nintendo%203DS%20%28Decrypted%29/",
+    "igdb": "3ds"
+  },
+  {
+    "group": "Nintendo",
+    "name": "Wii U",
+    "folder": "wiiu",
+    "listing": "https://minerva-archive.org/browse/Redump/Nintendo%20-%20Wii%20U%20-%20WUX/",
+    "igdb": "wiiu"
+  },
+  {
+    "group": "Sega",
+    "name": "SG-1000",
+    "folder": "sg-1000",
+    "listing": "https://minerva-archive.org/browse/No-Intro/Sega%20-%20SG-1000/",
+    "igdb": "sg1000"
+  },
+  {
+    "group": "Sega",
+    "name": "Master System",
+    "folder": "mastersystem",
+    "listing": "https://minerva-archive.org/browse/No-Intro/Sega%20-%20Master%20System%20-%20Mark%20III/",
+    "igdb": "sms"
+  },
+  {
+    "group": "Sega",
+    "name": "Mega Drive / Genesis",
+    "folder": "megadrive",
+    "listing": "https://minerva-archive.org/browse/No-Intro/Sega%20-%20Mega%20Drive%20-%20Genesis/",
+    "igdb": "genesis-slash-megadrive"
+  },
+  {
+    "group": "Sega",
+    "name": "Game Gear",
+    "folder": "gamegear",
+    "listing": "https://minerva-archive.org/browse/No-Intro/Sega%20-%20Game%20Gear/",
+    "igdb": "gamegear"
+  },
+  {
+    "group": "Sega",
+    "name": "Mega CD / Sega CD",
+    "folder": "megacd",
+    "listing": "https://minerva-archive.org/browse/Redump/Sega%20-%20Mega%20CD%20%26%20Sega%20CD/",
+    "igdb": "sega-cd"
+  },
+  {
+    "group": "Sega",
+    "name": "32X",
+    "folder": "sega32x",
+    "listing": "https://minerva-archive.org/browse/No-Intro/Sega%20-%2032X/",
+    "igdb": "sega32"
+  },
+  {
+    "group": "Sega",
+    "name": "Saturn",
+    "folder": "saturn",
+    "listing": "https://minerva-archive.org/browse/Redump/Sega%20-%20Saturn/",
+    "igdb": "saturn"
+  },
+  {
+    "group": "Sega",
+    "name": "Dreamcast",
+    "folder": "dreamcast",
+    "listing": "https://minerva-archive.org/browse/Redump/Sega%20-%20Dreamcast/",
+    "igdb": "dc"
+  },
+  {
+    "group": "Sony",
+    "name": "PlayStation",
+    "folder": "psx",
+    "listing": "https://minerva-archive.org/browse/Redump/Sony%20-%20PlayStation/",
+    "igdb": "ps"
+  },
+  {
+    "group": "Sony",
+    "name": "PlayStation 2",
+    "folder": "ps2",
+    "listing": "https://minerva-archive.org/browse/Redump/Sony%20-%20PlayStation%202/",
+    "igdb": "ps2"
+  },
+  {
+    "group": "Sony",
+    "name": "PlayStation Portable",
+    "folder": "psp",
+    "listing": "https://minerva-archive.org/browse/Redump/Sony%20-%20PlayStation%20Portable/",
+    "igdb": "psp"
+  },
+  {
+    "group": "Sony",
+    "name": "PlayStation 3",
+    "folder": "ps3",
+    "listing": "https://minerva-archive.org/browse/Redump/Sony%20-%20PlayStation%203/",
+    "igdb": "ps3"
+  },
+  {
+    "group": "Microsoft",
+    "name": "Xbox",
+    "folder": "xbox",
+    "listing": "https://minerva-archive.org/browse/Redump/Microsoft%20-%20Xbox/",
+    "igdb": "xbox"
+  },
+  {
+    "group": "Microsoft",
+    "name": "Xbox 360",
+    "folder": "xbox360",
+    "listing": "https://minerva-archive.org/browse/Redump/Microsoft%20-%20Xbox%20360/",
+    "igdb": "xbox360"
+  },
+  {
+    "group": "NEC",
+    "name": "PC Engine / TurboGrafx-16",
+    "folder": "pcengine",
+    "listing": "https://minerva-archive.org/browse/No-Intro/NEC%20-%20PC%20Engine%20-%20TurboGrafx-16/",
+    "igdb": "turbografx16--1"
+  },
+  {
+    "group": "NEC",
+    "name": "PC Engine CD / TurboGrafx-CD",
+    "folder": "pcenginecd",
+    "listing": "https://minerva-archive.org/browse/Redump/NEC%20-%20PC%20Engine%20CD%20%26%20TurboGrafx%20CD/",
+    "igdb": "turbografx-16-slash-pc-engine-cd"
+  },
+  {
+    "group": "SNK",
+    "name": "Neo Geo Pocket",
+    "folder": "ngp",
+    "listing": "https://minerva-archive.org/browse/No-Intro/SNK%20-%20NeoGeo%20Pocket/",
+    "igdb": "neo-geo-pocket"
+  },
+  {
+    "group": "SNK",
+    "name": "Neo Geo Pocket Color",
+    "folder": "ngpc",
+    "listing": "https://minerva-archive.org/browse/No-Intro/SNK%20-%20NeoGeo%20Pocket%20Color/",
+    "igdb": "neo-geo-pocket-color"
+  },
+  {
+    "group": "SNK",
+    "name": "Neo Geo CD",
+    "folder": "neogeocd",
+    "listing": "https://minerva-archive.org/browse/Redump/SNK%20-%20Neo%20Geo%20CD/",
+    "igdb": "neo-geo-cd"
+  },
+  {
+    "group": "Atari",
+    "name": "Atari 2600",
+    "folder": "atari2600",
+    "listing": "https://minerva-archive.org/browse/No-Intro/Atari%20-%20Atari%202600/",
+    "igdb": "atari2600"
+  },
+  {
+    "group": "Atari",
+    "name": "Lynx",
+    "folder": "atarilynx",
+    "listing": "https://minerva-archive.org/browse/No-Intro/Atari%20-%20Atari%20Lynx%20%28LNX%29/",
+    "igdb": "lynx"
+  },
+  {
+    "group": "Atari",
+    "name": "Jaguar",
+    "folder": "atarijaguar",
+    "listing": "https://minerva-archive.org/browse/No-Intro/Atari%20-%20Atari%20Jaguar%20%28J64%29/",
+    "igdb": "jaguar"
+  },
+  {
+    "group": "Atari",
+    "name": "Jaguar CD",
+    "folder": "atarijaguarcd",
+    "listing": "https://minerva-archive.org/browse/Redump/Atari%20-%20Jaguar%20CD%20Interactive%20Multimedia%20System/",
+    "igdb": "atari-jaguar-cd"
+  },
+  {
+    "group": "Bandai",
+    "name": "WonderSwan",
+    "folder": "wonderswan",
+    "listing": "https://minerva-archive.org/browse/No-Intro/Bandai%20-%20WonderSwan/",
+    "igdb": "wonderswan"
+  },
+  {
+    "group": "Bandai",
+    "name": "WonderSwan Color",
+    "folder": "wonderswancolor",
+    "listing": "https://minerva-archive.org/browse/No-Intro/Bandai%20-%20WonderSwan%20Color/",
+    "igdb": "wonderswan-color"
+  },
+  {
+    "group": "Other",
+    "name": "3DO",
+    "folder": "3do",
+    "listing": "https://minerva-archive.org/browse/Redump/Panasonic%20-%203DO%20Interactive%20Multiplayer/",
+    "igdb": "3do"
+  },
+  {
+    "group": "Other",
+    "name": "CD-i",
+    "folder": "cdimono1",
+    "listing": "https://minerva-archive.org/browse/Redump/Philips%20-%20CD-i/",
+    "igdb": "philips-cdi"
+  },
+  {
+    "group": "Other",
+    "name": "ColecoVision",
+    "folder": "colecovision",
+    "listing": "https://minerva-archive.org/browse/No-Intro/Coleco%20-%20ColecoVision/",
+    "igdb": "colecovision"
+  },
+  {
+    "group": "Other",
+    "name": "Intellivision",
+    "folder": "intellivision",
+    "listing": "https://minerva-archive.org/browse/No-Intro/Mattel%20-%20Intellivision/",
+    "igdb": "intellivision"
+  },
+  {
+    "group": "Other",
+    "name": "Vectrex",
+    "folder": "vectrex",
+    "listing": "https://minerva-archive.org/browse/No-Intro/GCE%20-%20Vectrex/",
+    "igdb": "vectrex"
+  }
+]

@@ -1,0 +1,38 @@
+{
+ "version": 1,
+ "consoles": {
+  "no-intro-nintendo-nintendo-entertainment-system-headered": {
+   "covers": 1745,
+   "details": 1243,
+   "folder": "nes",
+   "group": "Nintendo",
+   "igdb": "nes",
+   "listing": "https://minerva-archive.org/browse/No-Intro/Nintendo%20-%20Nintendo%20Entertainment%20System%20%28Headered%29/",
+   "name": "NES",
+   "titles": 3900,
+   "updated": "1794238173"
+  },
+  "redump-microsoft-xbox-360": {
+   "name": "Xbox 360",
+   "group": "Microsoft",
+   "folder": "xbox360",
+   "listing": "https://minerva-archive.org/browse/Redump/Microsoft%20-%20Xbox%20360/",
+   "igdb": "xbox360",
+   "updated": "2026-11-09T13:21:36.524Z",
+   "titles": 2006,
+   "covers": 1466,
+   "details": 1419
+  },
+  "redump-sony-playstation": {
+   "name": "PlayStation",
+   "group": "Sony",
+   "folder": "psx",
+   "listing": "https://minerva-archive.org/browse/Redump/Sony%20-%20PlayStation/",
+   "igdb": "ps",
+   "updated": "2026-11-09T14:10:04.289Z",
+   "titles": 6511,
+   "covers": 3422,
+   "details": 3257
+  }
+ }
+}

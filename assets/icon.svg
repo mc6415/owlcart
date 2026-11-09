@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9b6cf7"/>
+      <stop offset="1" stop-color="#5a2fc2"/>
+    </linearGradient>
+    <radialGradient id="eye" cx="0.38" cy="0.35" r="0.75">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e9e0ff"/>
+    </radialGradient>
+  </defs>
+  <!-- Rounded square -->
+  <rect x="64" y="64" width="896" height="896" rx="208" fill="url(#bg)"/>
+  <!-- Owl head: rounded body with two ear tufts -->
+  <path d="M232 380 L272 196 L408 300 Q512 262 616 300 L752 196 L792 380
+           Q832 470 800 600 Q752 800 512 812 Q272 800 224 600 Q192 470 232 380 Z"
+        fill="#2b1660" fill-opacity="0.55"/>
+  <!-- Eyes, drawn as discs -->
+  <g>
+    <circle cx="384" cy="500" r="128" fill="url(#eye)"/>
+    <circle cx="640" cy="500" r="128" fill="url(#eye)"/>
+    <circle cx="384" cy="500" r="128" fill="none" stroke="#c9b6ff" stroke-width="8"/>
+    <circle cx="640" cy="500" r="128" fill="none" stroke="#c9b6ff" stroke-width="8"/>
+    <!-- disc grooves -->
+    <circle cx="384" cy="500" r="92" fill="none" stroke="#d9cbff" stroke-width="5"/>
+    <circle cx="640" cy="500" r="92" fill="none" stroke="#d9cbff" stroke-width="5"/>
+    <!-- pupils / disc hubs -->
+    <circle cx="396" cy="508" r="52" fill="#2b1660"/>
+    <circle cx="628" cy="508" r="52" fill="#2b1660"/>
+    <circle cx="410" cy="492" r="14" fill="#ffffff"/>
+    <circle cx="642" cy="492" r="14" fill="#ffffff"/>
+  </g>
+  <!-- Beak -->
+  <path d="M478 616 L546 616 L512 690 Z" fill="#ffb547" stroke="#ffb547" stroke-width="18" stroke-linejoin="round"/>
+</svg>
