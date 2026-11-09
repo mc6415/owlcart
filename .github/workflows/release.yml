@@ -1,12 +1,14 @@
-# Builds Owlcart for Windows and Linux and publishes a GitHub release
-# whenever the version in src-tauri/tauri.conf.json is one that hasn't been
-# released yet. Bump it with: npm run bump -- 0.2.0 (or patch / minor / major)
+# Builds Owlcart for Windows and Linux and publishes a GitHub release when the
+# version in src-tauri/tauri.conf.json goes up. Bump it with:
+#   npm run bump -- patch   (or minor / major / 1.2.3)
 
 name: Release
 
 on:
   push:
     branches: [main]
+    # Only pushes that touch the version file start this workflow at all.
+    paths: [src-tauri/tauri.conf.json]
   workflow_dispatch: # run by hand from the Actions tab
 
 permissions:
@@ -26,22 +28,30 @@ jobs:
       release_id: ${{ steps.draft.outputs.id }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tags, to compare with earlier releases
 
       - name: Read version
         id: version
         run: echo "version=$(jq -r .version src-tauri/tauri.conf.json)" >> "$GITHUB_OUTPUT"
 
-      - name: Is it already released?
+      # Build only when the version is higher than every released version, so
+      # other edits to tauri.conf.json (or an accidental downgrade) don't release.
+      - name: Is it a new, higher version?
         id: tag
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null; then
-            echo "v$VERSION already released; nothing to build."
-            echo "release=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "New version v$VERSION; building."
+          latest=$(git tag --list 'v[0-9]*' | sed 's/^v//' | sort -V | tail -n 1)
+          if [ -z "$latest" ]; then
+            echo "No releases yet; building v$VERSION."
             echo "release=true" >> "$GITHUB_OUTPUT"
+          elif [ "$VERSION" != "$latest" ] && [ "$(printf '%s\n%s\n' "$latest" "$VERSION" | sort -V | tail -n 1)" = "$VERSION" ]; then
+            echo "v$VERSION is newer than v$latest; building."
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "v$VERSION isn't newer than the latest release (v$latest); nothing to build."
+            echo "release=false" >> "$GITHUB_OUTPUT"
           fi
 
       # Builds upload into a draft; it's only published if every build works.
