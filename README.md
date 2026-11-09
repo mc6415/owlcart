@@ -42,6 +42,12 @@
 - ✅ **Already-downloaded games are marked**, including ones from before you installed Owlcart
 - 🔔 **Downloads popover** with progress, speed, pause, resume and retry
 
+<p align="center">
+  <img src="docs/screenshots/details.jpg" width="820" alt="The game details window: banner, cover, title, year, developer, region flags, rating and genres, a summary, screenshots and the list of versions with download buttons" />
+  <br />
+  <sub>Click any game for its details and every regional version. (Artwork blurred in these screenshots.)</sub>
+</p>
+
 **Make it yours**
 - 🎨 Light and dark themes that follow your system
 - ⌨️ [Keyboard shortcuts](#keyboard-shortcuts) for everything
