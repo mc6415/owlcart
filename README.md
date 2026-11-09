@@ -73,6 +73,20 @@ published data. This is the same lookup as the scripts, ported to Rust (`fetch.r
 in `src-tauri/src/jobs.rs`. Users can override it under Settings; a local folder
 path works too and is re-read whenever files change.
 
+## Releases
+
+Pushing to `main` with a version that hasn't been released yet builds the app on
+GitHub Actions (`.github/workflows/release.yml`) and publishes a release with a
+Windows `-setup.exe` and Linux `.AppImage`, `.deb` and `.rpm`.
+
+```sh
+npm run bump -- patch     # or minor / major / 1.2.3: updates every version field
+git commit -am "Release v0.1.1" && git push
+```
+
+The release is created as a draft and only published once both builds succeed.
+The Windows installer isn't code-signed, so SmartScreen will warn on first run.
+
 ## Tests
 
 ```sh
