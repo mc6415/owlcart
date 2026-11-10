@@ -1,8 +1,11 @@
+mod bundled;
 mod covers;
 mod data;
 mod engine;
 mod extract;
 mod fetch;
+mod folder_picker;
+mod second_screen;
 mod jobs;
 mod scrape;
 
@@ -135,6 +138,34 @@ async fn game_details(
     mgr.game_details(&title, &slug).await.map_err(err)
 }
 
+/// Whether there's a second screen (dual-screen devices like the AYN Thor).
+#[tauri::command]
+async fn second_screen_available(app: tauri::AppHandle) -> Res<bool> {
+    tauri::async_runtime::spawn_blocking(move || second_screen::available(&app))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(err)
+}
+
+/// What to show on the second screen: the highlighted game and downloads.
+#[tauri::command]
+async fn second_screen_update(app: tauri::AppHandle, state: serde_json::Value) -> Res<()> {
+    tauri::async_runtime::spawn_blocking(move || second_screen::update(&app, state))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(err)
+}
+
+/// Android's folder picker; returns the chosen folder's path (None if cancelled).
+#[tauri::command]
+async fn pick_folder(app: tauri::AppHandle) -> Res<Option<String>> {
+    // Waits for the user, so keep it off the async threads.
+    tauri::async_runtime::spawn_blocking(move || folder_picker::pick(&app))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(err)
+}
+
 #[tauri::command]
 async fn open_downloads(app: tauri::AppHandle, mgr: State<'_, Mgr>) -> Res<()> {
     let dir = mgr.settings().await.download_dir;
@@ -156,6 +187,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(folder_picker::init())
+        .plugin(second_screen::init())
         .setup(|app| {
             let config_dir = app.path().app_config_dir()?;
             let cache_dir = app.path().app_cache_dir()?;
@@ -192,6 +225,9 @@ pub fn run() {
             start_fetch,
             cancel_fetch,
             fetch_status,
+            pick_folder,
+            second_screen_available,
+            second_screen_update,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

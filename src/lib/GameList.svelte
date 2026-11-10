@@ -6,6 +6,7 @@
   import { untrack } from "svelte";
   import ProgressRing from "./ProgressRing.svelte";
   import { reduceMotion } from "./motion";
+  import { isAndroid } from "./platform";
 
   interface Props {
     entries: Entry[];
@@ -64,7 +65,8 @@
       viewport.scrollTop = top + ROW - viewport.clientHeight;
   });
 
-  const ROW = 32;
+  // Taller rows on touch screens: 44px is a comfortable thumb target.
+  const ROW = isAndroid ? 44 : 32;
   const OVERSCAN = 10;
   let scrollTop = $state(0);
   let height = $state(400);
@@ -302,6 +304,14 @@
   .act .icon {
     opacity: 0;
   }
+  @media (hover: none) {
+    .act .icon {
+      opacity: 1 !important;
+    }
+  }
+  :global(html.android) .act .icon {
+    opacity: 1 !important;
+  }
   .row:hover .icon,
   .icon:focus-visible {
     opacity: 1;
@@ -357,5 +367,11 @@
     color: var(--muted);
     padding: 16px 12px;
     margin: 0;
+  }
+  :global(html.android) .row input[type="checkbox"] {
+    transform: scale(1.35);
+  }
+  :global(html.android) .title {
+    font-size: 14px;
   }
 </style>

@@ -195,4 +195,19 @@
       animation: none;
     }
   }
+  /* Android: downloads slide up as a full-width sheet from the bottom. */
+  :global(html.android) .pop {
+    position: fixed;
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 72vh;
+    border-radius: 16px 16px 0 0;
+    border-width: 1px 0 0;
+    box-shadow: 0 -12px 40px rgb(0 0 0 / 0.35);
+  }
+  :global(html.android) .pop :global(.panel) {
+    width: 100%;
+  }
 </style>

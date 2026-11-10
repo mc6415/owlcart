@@ -4,8 +4,9 @@
 
 use anyhow::{Context, Result, anyhow};
 use librqbit::{
-    AddTorrent, AddTorrentOptions, AddTorrentResponse, ListenerMode, ListenerOptions, ManagedTorrent,
-    Session, SessionOptions, TorrentStatsState, api::TorrentIdOrHash,
+    AddTorrent, AddTorrentOptions, AddTorrentResponse, DhtSessionConfig, ListenerMode,
+    ListenerOptions, ManagedTorrent, Session, SessionOptions, TorrentStatsState,
+    api::TorrentIdOrHash, dht::DhtPersistenceConfig,
 };
 
 type Handle = Arc<ManagedTorrent>;
@@ -42,6 +43,15 @@ impl Engine {
         let opts = SessionOptions {
             // The download queue tracks jobs itself, and resumes by re-adding.
             persistence: None,
+            // Keep the DHT's peer table in our own cache folder. librqbit's
+            // default location doesn't exist on Android.
+            dht: Some(DhtSessionConfig {
+                persistence: Some(DhtPersistenceConfig {
+                    config_filename: Some(scratch.join("dht.json")),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
             fastresume: false,
             // Accept incoming peers and speak uTP as well as TCP: many peers
             // only reach us that way, and without it we find far fewer.

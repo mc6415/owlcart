@@ -9,5 +9,8 @@ LICENSE), copied from crates.io with one change:
   message is ~60 KiB. With a 32 KiB buffer, every peer was disconnected as soon
   as it sent it, and nothing downloaded.
 
+- The optional web UI (`webui/`) is removed. Owlcart doesn't enable the
+  `webui` feature, and its build files confused the app's frontend checks.
+
 Remove this copy (and the `[patch.crates-io]` entry in src-tauri/Cargo.toml)
 once upstream librqbit handles larger messages.

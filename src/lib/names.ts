@@ -48,9 +48,9 @@ export function parseName(name: string): ParsedName {
 const EXTRA_TAG =
   /^(demo|trade demo|rolling demo|kiosk|taikenban|sample|trial|preview|promo|beta|alpha|proto|prototype|build|debug|program|test program|music program|pirate|bonus disc)\b/i;
 
-/** True for demos, betas, prototypes and other non-game files. */
+/** True for demos, betas, prototypes, BIOS files and other non-games. */
 export function isExtra(p: ParsedName): boolean {
-  return p.tags.some((t) => EXTRA_TAG.test(t.trim()));
+  return p.title.startsWith("[BIOS]") || p.tags.some((t) => EXTRA_TAG.test(t.trim()));
 }
 
 /** File name without its last extension: "Halo 3 (USA).zip" -> "Halo 3 (USA)". */
