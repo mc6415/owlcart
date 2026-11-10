@@ -1,6 +1,6 @@
 {
   "name": "owlcart",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Browse Minerva Archive console listings and download single games via torrent, with cover art and game details.",
   "type": "module",
   "scripts": {
@@ -12,6 +12,7 @@
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "tauri": "tauri",
     "data": "node scripts/build-data.ts",
+    "data:list": "node scripts/list-data.ts",
     "bump": "node scripts/bump-version.ts"
   },
   "dependencies": {

@@ -6,7 +6,8 @@
 //                   [--no-covers] [--no-details] [--out data]
 //
 // With no console named, updates every console that already has data. Name
-// consoles (matched against slug or name, e.g. `npm run data -- ps2 saturn`) to
+// consoles (their ES-DE folder, or part of the slug or name, e.g.
+// `npm run data -- gba saturn`) to
 // add them, or `all` for everything in consoles.json.
 // Keys: .steamgriddb-key and .igdb-credentials in the project root (git-ignored).
 //
@@ -201,7 +202,10 @@ async function main() {
   const selected = configs.filter((c) => {
     const slug = listingSlug(c.listing);
     if (!filters.length) return slug in index.consoles;
-    return filters.includes("all") || filters.some((f) => slug.includes(f) || c.name.toLowerCase().includes(f));
+    return (
+      filters.includes("all") ||
+      filters.some((f) => f === c.folder?.toLowerCase() || slug.includes(f) || c.name.toLowerCase().includes(f))
+    );
   });
   if (!selected.length) {
     throw new Error(filters.length ? "No consoles in consoles.json match that filter" : "No consoles built yet; name one, e.g. npm run data -- ps2");
