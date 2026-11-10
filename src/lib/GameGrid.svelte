@@ -7,7 +7,7 @@
   import Icon from "./Icon.svelte";
   import ProgressRing from "./ProgressRing.svelte";
   import { reduceMotion } from "./motion";
-  import { isAndroid } from "./platform";
+  import { isAndroid, onScreenHeight } from "./platform";
 
   interface Props {
     entries: Entry[];
@@ -74,9 +74,9 @@
   $effect(() => {
     if (cursor < 0 || !viewport) return;
     const top = PAD + Math.floor(cursor / colCount) * rowH;
+    const shown = onScreenHeight(viewport);
     if (top < viewport.scrollTop) viewport.scrollTop = Math.max(0, top - PAD);
-    else if (top + rowH > viewport.scrollTop + viewport.clientHeight)
-      viewport.scrollTop = top + rowH - viewport.clientHeight;
+    else if (top + rowH > viewport.scrollTop + shown) viewport.scrollTop = top + rowH - shown;
   });
   let cardW = $derived((width - PAD * 2 - GAP * (colCount - 1)) / colCount);
   let coverH = $derived(Math.round(cardW * 1.5)); // 2:3, SteamGridDB's portrait shape

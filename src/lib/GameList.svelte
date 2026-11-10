@@ -6,7 +6,7 @@
   import { untrack } from "svelte";
   import ProgressRing from "./ProgressRing.svelte";
   import { reduceMotion } from "./motion";
-  import { isAndroid } from "./platform";
+  import { isAndroid, onScreenHeight } from "./platform";
 
   interface Props {
     entries: Entry[];
@@ -66,9 +66,9 @@
   $effect(() => {
     if (cursor < 0 || !viewport) return;
     const top = cursor * ROW;
+    const shown = onScreenHeight(viewport);
     if (top < viewport.scrollTop) viewport.scrollTop = top;
-    else if (top + ROW > viewport.scrollTop + viewport.clientHeight)
-      viewport.scrollTop = top + ROW - viewport.clientHeight;
+    else if (top + ROW > viewport.scrollTop + shown) viewport.scrollTop = top + ROW - shown;
   });
 
   // Taller rows on touch screens: 44px is a comfortable thumb target.

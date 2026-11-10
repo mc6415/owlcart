@@ -17,7 +17,8 @@
 // Output layout (host the folder as-is):
 //   data/index.json                      consoles, update times, counts
 //   data/<slug>/covers.json              title -> cover ref ("s:..." SteamGridDB, "i:..." IGDB) or null
-//   data/<slug>/ratings.json             title -> [IGDB rating 0-100, review count], rated games only, for sorting
+//   data/<slug>/games.json               title -> [IGDB id] or [IGDB id, rating 0-100, review count], matched
+//                                        titles only: lets the app group and sort a whole console at once
 //   data/<slug>/details/<00-ff>.json     title -> IGDB details or null, bucketed by titleBucket()
 
 import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
@@ -125,7 +126,7 @@ async function buildConsole(
       }
     }
     await writeFile(join(dir, "covers.json"), JSON.stringify(sortKeys(covers)) + "\n");
-    await writeFile(join(dir, "ratings.json"), JSON.stringify(ratingsOf(details)) + "\n");
+    await writeFile(join(dir, "games.json"), JSON.stringify(gamesOf(details)) + "\n");
     const buckets: Record<string, Record<string, GameDetails | null>> = {};
     for (const [t, d] of Object.entries(details)) (buckets[titleBucket(t)] ??= {})[t] = d;
     for (const [b, entries] of Object.entries(buckets)) {
@@ -235,12 +236,18 @@ main().catch((e) => {
   process.exit(1);
 });
 
-/** Title -> [rating, review count] for every rated game: the whole console's ratings in one small file, for sorting. */
-export function ratingsOf(details: Record<string, GameDetails | null>): Record<string, [number, number]> {
-  const out: Record<string, [number, number]> = {};
+/**
+ * Title -> [IGDB id] or [IGDB id, rating, review count] for every matched
+ * title: the whole console in one small file, so the app can merge titles
+ * that are the same game (e.g. "Biohazard 2" and "Resident Evil 2") and sort
+ * by rating without loading every game's details.
+ */
+export function gamesOf(details: Record<string, GameDetails | null>): Record<string, number[]> {
+  const out: Record<string, number[]> = {};
   for (const t of Object.keys(details).sort()) {
     const d = details[t];
-    if (d?.rating != null) out[t] = [d.rating, d.ratingCount ?? 0];
+    if (!d) continue;
+    out[t] = d.rating != null ? [d.igdb, d.rating, d.ratingCount ?? 0] : [d.igdb];
   }
   return out;
 }
@@ -274,7 +281,7 @@ async function refreshRatings(cfg: ConsoleConfig, outDir: string, index: Index, 
     await writeFile(join(detailsDir, f), JSON.stringify(sortKeys(entries)) + "\n");
   }
   const details = Object.assign({}, ...Object.values(buckets)) as Record<string, GameDetails | null>;
-  await writeFile(join(outDir, slug, "ratings.json"), JSON.stringify(ratingsOf(details)) + "\n");
+  await writeFile(join(outDir, slug, "games.json"), JSON.stringify(gamesOf(details)) + "\n");
   // Bumping this tells the app to re-download this console's files.
   if (changed && index.consoles[slug]) {
     index.consoles[slug].updated = new Date().toISOString();

@@ -99,8 +99,8 @@ export const api = {
     invoke<Record<string, string>>("downloaded", { folder, archiveFolder }),
   /** Titles with cover art on a console, or null if it has no cover data. */
   coverTitles: (slug: string) => invoke<string[] | null>("cover_titles", { slug }),
-  /** IGDB [rating 0-100, review count] of each rated game on a console, by title. */
-  ratings: (slug: string) => invoke<Record<string, [number, number]>>("ratings", { slug }),
+  /** Each matched title on a console: [IGDB id] or [IGDB id, rating 0-100, review count]. */
+  games: (slug: string) => invoke<Record<string, number[]>>("games", { slug }),
   coverArt: (title: string, slug: string) => invoke<string | null>("cover_art", { title, slug }),
   consoleIndex: () =>
     invoke<Record<string, { name: string; group?: string; folder?: string; igdb?: string; listing: string; titles: number; covers: number; details: number }> | null>(

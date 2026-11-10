@@ -13,7 +13,7 @@
   interface Props {
     /** Parsed game title (without region/language tags). */
     title: string;
-    /** Every file on this listing with that title. */
+    /** Every file on this listing for that game (including other titles it's known by). */
     versions: Entry[];
     slug: string;
     queued: Set<string>;
@@ -212,6 +212,7 @@
               </span>
               <span class="vname" title={v.name}>
                 {n.regions.join(", ") || "Unknown region"}
+                {#if n.title !== title}<span class="alt">· {n.title}</span>{/if}
                 {#each other as t}<span class="tag">{t}</span>{/each}
               </span>
               <span class="vsize">{v.size}</span>
@@ -544,6 +545,10 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .vname .alt {
+    margin-left: 4px;
+    color: var(--muted);
   }
   .tag {
     margin-left: 6px;

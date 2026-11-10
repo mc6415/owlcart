@@ -3,7 +3,7 @@
 //!   <base>/index.json                     consoles and their `updated` versions
 //!   <base>/<slug>/covers.json             title -> cover ref ("s:..." / "i:..." / URL) or null
 //!   <base>/<slug>/details/<00-ff>.json    title -> IGDB details or null
-//!   <base>/<slug>/ratings.json            title -> [IGDB rating, review count], rated games only
+//!   <base>/<slug>/games.json              title -> [IGDB id] or [IGDB id, rating, review count]
 //!
 //! `base` is a URL or a local folder. Remote files are cached on disk and only
 //! re-downloaded when the console's `updated` value in index.json changes, so
@@ -83,9 +83,9 @@ impl DataSource {
         Ok(index.get("consoles").cloned().unwrap_or(Value::Null))
     }
 
-    /// The whole ratings.json map for a console (Null if there's no data).
-    pub async fn ratings_map(&self, base: &str, slug: &str) -> Result<Arc<Value>> {
-        self.file(base, slug, "ratings.json").await
+    /// The whole games.json map for a console (Null if there's no data).
+    pub async fn games_map(&self, base: &str, slug: &str) -> Result<Arc<Value>> {
+        self.file(base, slug, "games.json").await
     }
 
     /// The whole covers.json map for a console (Null if there's no data).

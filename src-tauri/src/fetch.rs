@@ -128,20 +128,26 @@ impl ConsoleData {
             &serde_json::to_string(&self.covers)?,
         )
         .await?;
-        // Every rated game's [rating, review count] in one small file, for
-        // sorting by rating.
-        let ratings: BTreeMap<&String, Value> = self
+        // Every matched title's [IGDB id, rating, review count] in one small
+        // file, for grouping and sorting a whole console (see gamesOf() in
+        // scripts/build-data.ts).
+        let games: BTreeMap<&String, Value> = self
             .details
             .iter()
             .filter_map(|(t, d)| {
-                let r = d.get("rating")?.as_u64()?;
-                let n = d.get("ratingCount").and_then(Value::as_u64).unwrap_or(0);
-                Some((t, json!([r, n])))
+                let id = d.get("igdb")?.as_u64()?;
+                Some(match d.get("rating").and_then(Value::as_u64) {
+                    Some(r) => {
+                        let n = d.get("ratingCount").and_then(Value::as_u64).unwrap_or(0);
+                        (t, json!([id, r, n]))
+                    }
+                    None => (t, json!([id])),
+                })
             })
             .collect();
         write_atomic(
-            &self.dir.join("ratings.json"),
-            &serde_json::to_string(&ratings)?,
+            &self.dir.join("games.json"),
+            &serde_json::to_string(&games)?,
         )
         .await?;
         let mut buckets: BTreeMap<String, Map<String, Value>> = BTreeMap::new();
@@ -314,7 +320,11 @@ impl Igdb {
                 .filter_map(|a| a["name"].as_str());
             for n in g["name"].as_str().into_iter().chain(alts) {
                 let s = match_score(&query, n);
-                if s > best_score {
+                // On a tie (IGDB sometimes has two entries with the same
+                // name), take the one more people have reviewed.
+                let reviews = |g: &Value| g["total_rating_count"].as_u64().unwrap_or(0);
+                let more = best.is_none_or(|b| reviews(g) > reviews(b));
+                if s > best_score || (s == best_score && more) {
                     best = Some(g);
                     best_score = s;
                 }
