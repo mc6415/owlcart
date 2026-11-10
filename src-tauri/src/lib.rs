@@ -116,11 +116,11 @@ async fn cover_titles(mgr: State<'_, Mgr>, slug: String) -> Res<Option<Vec<Strin
 }
 
 #[tauri::command]
-async fn ratings(
+async fn games(
     mgr: State<'_, Mgr>,
     slug: String,
-) -> Res<std::collections::HashMap<String, (u64, u64)>> {
-    mgr.ratings(&slug).await.map_err(err)
+) -> Res<std::collections::HashMap<String, Vec<u64>>> {
+    mgr.games(&slug).await.map_err(err)
 }
 
 #[tauri::command]
@@ -230,7 +230,7 @@ pub fn run() {
             console_index,
             downloaded,
             cover_titles,
-            ratings,
+            games,
             start_fetch,
             cancel_fetch,
             fetch_status,

@@ -394,8 +394,14 @@
   // when the console has no cover data (then nothing is hidden).
   let hideNoArt = $state(false);
   let artTitles = $state<Set<string> | null>(null);
-  /** IGDB [rating, review count] of each rated game on this console, by title. */
-  let ratings = $state<Record<string, [number, number]>>({});
+  /** Each matched title on this console: [IGDB id] or [IGDB id, rating, review count]. */
+  let igdbGames = $state<Record<string, number[]>>({});
+  /** IGDB [rating, review count] of each rated title. */
+  let ratings = $derived(
+    Object.fromEntries(
+      Object.entries(igdbGames).flatMap(([t, g]) => (g.length >= 3 ? [[t, [g[1], g[2]] as [number, number]]] : [])),
+    ),
+  );
   /**
    * Rating used for sorting: blended with the console's average as if every
    * game had 50 more average reviews, so a game rated 98 from a handful of
@@ -407,14 +413,14 @@
     const PRIOR = 50;
     return new Map(Object.entries(ratings).map(([t, [r, n]]) => [t, (r * n + mean * PRIOR) / (n + PRIOR)]));
   });
-  /** Loads which games have art, and their ratings, for the current console. */
+  /** Loads which games have art, and their IGDB ids and ratings, for the current console. */
   async function refreshArtTitles() {
     const slug = listing ? listingSlug(listing.url) : "";
-    const [titles, r] = slug
-      ? await Promise.all([api.coverTitles(slug).catch(() => null), api.ratings(slug).catch(() => ({}))])
+    const [titles, games] = slug
+      ? await Promise.all([api.coverTitles(slug).catch(() => null), api.games(slug).catch(() => ({}))])
       : [null, {}];
     artTitles = titles ? new Set(titles) : null;
-    ratings = r;
+    igdbGames = games;
   }
   $effect(() => {
     listing; // reload when the console changes
@@ -447,31 +453,41 @@
   let regionsOf = $derived(
     new Map((listing?.entries ?? []).map((e) => [e.url, e.kind === "file" ? parseName(e.name).regions : []])),
   );
-  /** Number of different games (titles) among some entries. */
-  const gamesIn = (entries: Entry[]) => new Set(entries.filter((e) => e.kind === "file").map((e) => titleOf.get(e.url))).size;
 
   // ---- one card per game ----
-  // Files with the same title (regions, revisions, demos) show as one game.
-  // Its card stands for the best version (see versions.ts); the details
-  // window lists them all.
+  // Files with the same title (regions, revisions, demos) show as one game,
+  // and so do titles matched to the same IGDB game ("Biohazard 2" and
+  // "Resident Evil 2"). Its card stands for the best version (see
+  // versions.ts); the details window lists them all.
+
+  /** The game a title belongs to: its IGDB id if matched, else the title itself. */
+  function gameKey(title: string): string {
+    const id = igdbGames[title]?.[0];
+    return id ? `#${id}` : `t:${title}`;
+  }
+  /** Each file's game, keyed by URL. */
+  let gameOf = $derived(new Map([...titleOf].map(([url, t]) => [url, gameKey(t)])));
+  /** Number of different games among some entries. */
+  const gamesIn = (entries: Entry[]) => new Set(entries.filter((e) => e.kind === "file").map((e) => gameOf.get(e.url))).size;
 
   /** Regions to prefer: the ones picked in the region filter, then the device's. */
   let prefs = $derived(preferredRegions(regionSel));
-  /** Every version of each title on this listing, best first. */
-  let versionsByTitle = $derived.by(() => {
+  /** Every version of each game on this listing, best first. */
+  let versionsByGame = $derived.by(() => {
     const m = new Map<string, Entry[]>();
     for (const e of listing?.entries ?? []) {
       if (e.kind !== "file") continue;
-      const t = titleOf.get(e.url)!;
-      const list = m.get(t);
+      const g = gameOf.get(e.url)!;
+      const list = m.get(g);
       if (list) list.push(e);
-      else m.set(t, [e]);
+      else m.set(g, [e]);
     }
     for (const list of m.values()) if (list.length > 1) list.sort((a, b) => compareVersions(a, b, prefs));
     return m;
   });
+  /** Every version of the game a title belongs to, best first. */
   function versionsOf(title: string): Entry[] {
-    return versionsByTitle.get(title) ?? [];
+    return versionsByGame.get(gameKey(title)) ?? [];
   }
 
   /** Every region in this listing, most common first. */
@@ -507,15 +523,15 @@
 
   /** Games in each region within the current text filter. */
   let regionCounts = $derived.by(() => {
-    const titles = new Map<string, Set<string>>();
+    const games = new Map<string, Set<string>>();
     for (const e of textMatched) {
       for (const r of regionsOf.get(e.url) ?? []) {
-        const set = titles.get(r) ?? new Set<string>();
-        set.add(titleOf.get(e.url)!);
-        titles.set(r, set);
+        const set = games.get(r) ?? new Set<string>();
+        set.add(gameOf.get(e.url)!);
+        games.set(r, set);
       }
     }
-    return new Map([...titles].map(([r, set]) => [r, set.size]));
+    return new Map([...games].map(([r, set]) => [r, set.size]));
   });
 
   function toggleRegion(r: string) {
@@ -535,9 +551,9 @@
         list.push(e);
         continue;
       }
-      const t = titleOf.get(e.url)!;
-      const cur = best.get(t);
-      if (!cur || compareVersions(e, cur, prefs) < 0) best.set(t, e);
+      const g = gameOf.get(e.url)!;
+      const cur = best.get(g);
+      if (!cur || compareVersions(e, cur, prefs) < 0) best.set(g, e);
     }
     list.push(...best.values());
     const dir = sortDesc ? -1 : 1;
@@ -662,7 +678,12 @@
           return {
             url: e.url,
             label: p.regions.join(", ") || "Version",
-            sub: [...p.tags.filter((t) => t !== p.regions.join(", ")), e.size].join(" · "),
+            // Other titles the game is known by, e.g. "Biohazard 2" under "Resident Evil 2".
+            sub: [
+              ...(p.title !== info.title ? [p.title] : []),
+              ...p.tags.filter((t) => t !== p.regions.join(", ")),
+              e.size,
+            ].join(" · "),
             status,
             progress: status === "queued" ? jobProgress(job) : null,
           };
@@ -815,7 +836,7 @@
   );
 
   let totalBytes = $derived(listing?.entries.reduce((s, e) => s + (e.kind === "file" ? e.sizeBytes : 0), 0) ?? 0);
-  let gameCount = $derived(versionsByTitle.size);
+  let gameCount = $derived(versionsByGame.size);
 
   async function load(url: string) {
     loading = true;

@@ -128,20 +128,26 @@ impl ConsoleData {
             &serde_json::to_string(&self.covers)?,
         )
         .await?;
-        // Every rated game's [rating, review count] in one small file, for
-        // sorting by rating.
-        let ratings: BTreeMap<&String, Value> = self
+        // Every matched title's [IGDB id, rating, review count] in one small
+        // file, for grouping and sorting a whole console (see gamesOf() in
+        // scripts/build-data.ts).
+        let games: BTreeMap<&String, Value> = self
             .details
             .iter()
             .filter_map(|(t, d)| {
-                let r = d.get("rating")?.as_u64()?;
-                let n = d.get("ratingCount").and_then(Value::as_u64).unwrap_or(0);
-                Some((t, json!([r, n])))
+                let id = d.get("igdb")?.as_u64()?;
+                Some(match d.get("rating").and_then(Value::as_u64) {
+                    Some(r) => {
+                        let n = d.get("ratingCount").and_then(Value::as_u64).unwrap_or(0);
+                        (t, json!([id, r, n]))
+                    }
+                    None => (t, json!([id])),
+                })
             })
             .collect();
         write_atomic(
-            &self.dir.join("ratings.json"),
-            &serde_json::to_string(&ratings)?,
+            &self.dir.join("games.json"),
+            &serde_json::to_string(&games)?,
         )
         .await?;
         let mut buckets: BTreeMap<String, Map<String, Value>> = BTreeMap::new();

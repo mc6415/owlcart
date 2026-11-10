@@ -328,23 +328,17 @@ impl Manager {
         Ok(any.then(|| titles.into_iter().collect()))
     }
 
-    /// IGDB ratings of a console's games as (rating, review count), merged
-    /// from every source (higher priority wins). Empty when there's no data.
-    pub async fn ratings(&self, slug: &str) -> Result<HashMap<String, (u64, u64)>> {
+    /// Each matched title on a console as [IGDB id] or [IGDB id, rating,
+    /// review count], merged from every source (higher priority wins).
+    /// Empty when there's no data.
+    pub async fn games(&self, slug: &str) -> Result<HashMap<String, Vec<u64>>> {
         let mut all = HashMap::new();
         for b in self.sources().await.iter().rev() {
-            let map = self.data.ratings_map(b, slug).await.unwrap_or_default();
+            let map = self.data.games_map(b, slug).await.unwrap_or_default();
             if let Some(m) = map.as_object() {
                 all.extend(m.iter().filter_map(|(t, v)| {
-                    // [rating, count], or a bare rating from older data.
-                    let pair = match v {
-                        serde_json::Value::Array(a) => (
-                            a.first()?.as_u64()?,
-                            a.get(1).and_then(serde_json::Value::as_u64).unwrap_or(0),
-                        ),
-                        _ => (v.as_u64()?, 0),
-                    };
-                    Some((t.clone(), pair))
+                    let nums: Option<Vec<u64>> = v.as_array()?.iter().map(|x| x.as_u64()).collect();
+                    Some((t.clone(), nums.filter(|n| !n.is_empty())?))
                 }));
             }
         }
