@@ -133,7 +133,10 @@ export async function igdbDetails(
   for (const g of games) {
     for (const n of [g.name, ...(g.alternative_names ?? []).map((a) => a.name)]) {
       const s = matchScore(query, n);
-      if (s > bestScore) [best, bestScore] = [g, s];
+      // On a tie (IGDB sometimes has two entries with the same name), take the
+      // one more people have reviewed: it's the one people mean.
+      const more = (g.total_rating_count ?? 0) > (best?.total_rating_count ?? 0);
+      if (s > bestScore || (s === bestScore && more)) [best, bestScore] = [g, s];
     }
   }
   if (!best || bestScore < MATCH_THRESHOLD) return null;
@@ -158,23 +161,57 @@ export async function igdbDetails(
   return d;
 }
 
-/** Current rating and review count of each game, by IGDB id (500 per request). */
+interface RatedGame {
+  id: number;
+  name: string;
+  total_rating?: number;
+  total_rating_count?: number;
+  parent_game?: number;
+  version_parent?: number;
+}
+const RATED_FIELDS = "fields name,total_rating,total_rating_count,parent_game,version_parent;";
+
+/** Every game matching `where`, 500 per request. */
+async function igdbAll(auth: Igdb, where: string): Promise<RatedGame[]> {
+  const out: RatedGame[] = [];
+  for (let offset = 0; ; offset += 500) {
+    const page = await igdb<RatedGame[]>(auth, "games", `${RATED_FIELDS} where ${where}; limit 500; offset ${offset};`);
+    out.push(...page);
+    await sleep(300);
+    if (page.length < 500) return out;
+  }
+}
+
+/**
+ * Current rating and review count of each game, by IGDB id. IGDB sometimes
+ * splits one game into entries with the same name (PS1 Final Fantasy VII is
+ * a "main game" with 10 reviews and an "expanded game" with 1,600), so this
+ * uses whichever same-named relative (parent, or version of it) has the most.
+ */
 export async function igdbRatings(
   auth: Igdb,
   ids: number[],
 ): Promise<Map<number, { rating?: number; ratingCount?: number }>> {
   const out = new Map<number, { rating?: number; ratingCount?: number }>();
+  const same = (a: RatedGame, b: RatedGame) => a.name.trim().toLowerCase() === b.name.trim().toLowerCase();
   for (let i = 0; i < ids.length; i += 500) {
     const batch = ids.slice(i, i + 500);
-    const games = await igdb<{ id: number; total_rating?: number; total_rating_count?: number }[]>(
-      auth,
-      "games",
-      `fields total_rating,total_rating_count; where id = (${batch.join(",")}); limit 500;`,
-    );
-    for (const g of games) {
-      out.set(g.id, g.total_rating ? { rating: Math.round(g.total_rating), ratingCount: g.total_rating_count ?? 0 } : {});
+    const games = await igdbAll(auth, `id = (${batch.join(",")})`);
+    const children = await igdbAll(auth, `parent_game = (${batch.join(",")}) | version_parent = (${batch.join(",")})`);
+    const parentIds = [...new Set(games.flatMap((g) => [g.parent_game, g.version_parent]).filter((p): p is number => !!p))];
+    const parents = new Map<number, RatedGame>();
+    for (let j = 0; j < parentIds.length; j += 500) {
+      for (const p of await igdbAll(auth, `id = (${parentIds.slice(j, j + 500).join(",")})`)) parents.set(p.id, p);
     }
-    await sleep(300);
+    for (const g of games) {
+      const family = [
+        g,
+        ...children.filter((c) => c.parent_game === g.id || c.version_parent === g.id),
+        ...[g.parent_game, g.version_parent].map((p) => (p ? parents.get(p) : undefined)).filter((p) => !!p),
+      ].filter((r) => same(r, g) && r.total_rating);
+      const best = family.sort((a, b) => (b.total_rating_count ?? 0) - (a.total_rating_count ?? 0))[0];
+      out.set(g.id, best ? { rating: Math.round(best.total_rating!), ratingCount: best.total_rating_count ?? 0 } : {});
+    }
   }
   return out;
 }

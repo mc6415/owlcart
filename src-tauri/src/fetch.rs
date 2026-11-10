@@ -314,7 +314,11 @@ impl Igdb {
                 .filter_map(|a| a["name"].as_str());
             for n in g["name"].as_str().into_iter().chain(alts) {
                 let s = match_score(&query, n);
-                if s > best_score {
+                // On a tie (IGDB sometimes has two entries with the same
+                // name), take the one more people have reviewed.
+                let reviews = |g: &Value| g["total_rating_count"].as_u64().unwrap_or(0);
+                let more = best.is_none_or(|b| reviews(g) > reviews(b));
+                if s > best_score || (s == best_score && more) {
                     best = Some(g);
                     best_score = s;
                 }
