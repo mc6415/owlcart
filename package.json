@@ -12,6 +12,7 @@
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "tauri": "tauri",
     "data": "node scripts/build-data.ts",
+    "data:list": "node scripts/list-data.ts",
     "bump": "node scripts/bump-version.ts"
   },
   "dependencies": {
