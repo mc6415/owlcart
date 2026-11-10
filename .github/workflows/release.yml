@@ -69,7 +69,7 @@ jobs:
             -f tag_name="v$VERSION" -f target_commitish="$GITHUB_SHA" \
             -f name="Owlcart v$VERSION" -F draft=true \
             -f body="**Windows:** download the \`-setup.exe\` installer.
-          **Linux:** the \`.AppImage\` runs anywhere (install the \`aria2\` package first); the \`.deb\` / \`.rpm\` install aria2 for you." \
+          **Linux:** the \`.AppImage\` runs anywhere; or install the \`.deb\` / \`.rpm\`." \
             --jq .id)
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
@@ -113,8 +113,6 @@ jobs:
       - name: Install npm packages
         run: npm ci
 
-      # On Windows, tauri.windows.conf.json's beforeBuildCommand downloads the
-      # official aria2c.exe and bundles it with the app automatically.
       - name: Build and upload to the release
         uses: tauri-apps/tauri-action@v0
         env:

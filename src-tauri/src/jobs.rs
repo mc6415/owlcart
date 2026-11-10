@@ -1,7 +1,7 @@
-//! Download queue: resolves ROM pages, feeds aria2c, tracks progress and
+//! Download queue: resolves ROM pages, feeds the torrent engine, tracks progress and
 //! moves finished files into the download folder.
 
-use crate::aria2::{self, Aria2};
+use crate::engine::Engine;
 use crate::covers::Covers;
 use crate::data::DataSource;
 use crate::fetch::{ConsoleSpec, FetchStatus, Fetcher, Keys};
@@ -19,7 +19,7 @@ use url::Url;
 
 /// Partially downloaded games live here (inside the download folder, so the
 /// final move is a cheap rename). Each job gets its own subfolder because
-/// aria2 also writes fragments of neighbouring files in the torrent.
+/// the engine also writes fragments of neighbouring files in the torrent.
 const PARTIAL_DIR: &str = ".owlcart-partial";
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -104,7 +104,7 @@ pub enum JobState {
 }
 
 impl JobState {
-    /// Holds the torrent in aria2 (aria2 allows one download per torrent).
+    /// Holds the torrent in the engine (one download per torrent at a time).
     fn holds_torrent(self) -> bool {
         matches!(
             self,
@@ -157,8 +157,8 @@ pub struct EnqueueItem {
 
 pub struct Manager {
     app: AppHandle,
-    pub aria: Option<Aria2>,
-    pub aria_error: Option<String>,
+    pub engine: Option<Engine>,
+    pub engine_error: Option<String>,
     http: reqwest::Client,
     jobs: Mutex<Vec<Job>>,
     next_id: AtomicU64,
@@ -187,9 +187,8 @@ impl Manager {
             .and_then(|b| serde_json::from_slice(&b).ok())
             .unwrap_or_default();
 
-        let bin = aria2::find_binary();
-        let (aria, aria_error) = match Aria2::spawn(&bin).await {
-            Ok(a) => (Some(a), None),
+        let (engine, engine_error) = match Engine::start(cache_dir.join("engine")).await {
+            Ok(e) => (Some(e), None),
             Err(e) => (None, Some(format!("{e:#}"))),
         };
 
@@ -200,8 +199,8 @@ impl Manager {
             .expect("http client");
         Arc::new(Self {
             app,
-            aria,
-            aria_error,
+            engine,
+            engine_error,
             covers: Covers::new(http.clone(), cache_dir.clone()),
             data: DataSource::new(http.clone(), cache_dir.clone()),
             app_data: data_dir.join("data"),
@@ -217,11 +216,11 @@ impl Manager {
         })
     }
 
-    fn aria(&self) -> Result<&Aria2> {
-        self.aria.as_ref().ok_or_else(|| {
+    fn engine(&self) -> Result<&Engine> {
+        self.engine.as_ref().ok_or_else(|| {
             anyhow!(
-                "aria2c is not running: {}",
-                self.aria_error.as_deref().unwrap_or("unknown")
+                "the download engine isn't running: {}",
+                self.engine_error.as_deref().unwrap_or("unknown")
             )
         })
     }
@@ -516,7 +515,7 @@ impl Manager {
         let result = async {
             let url = Url::parse(&rom_url)?;
             let info = scrape::parse_rom_page(&self.get_text(&url).await?)?;
-            info.aria2_index()?;
+            info.file_index()?;
             let torrent_url = info.torrent_url(&url)?.to_string();
             Ok::<_, anyhow::Error>((info, torrent_url))
         }
@@ -551,7 +550,7 @@ impl Manager {
     pub async fn pause(&self, id: u64) -> Result<()> {
         let gid = self.with_job(id, |j| j.gid.clone()).await.flatten();
         if let Some(gid) = gid {
-            self.aria()?.pause(&gid).await?;
+            self.engine()?.pause(&gid).await?;
             self.with_job(id, |j| {
                 j.state = JobState::Paused;
                 j.speed = 0
@@ -565,7 +564,7 @@ impl Manager {
     pub async fn resume(&self, id: u64) -> Result<()> {
         let gid = self.with_job(id, |j| j.gid.clone()).await.flatten();
         if let Some(gid) = gid {
-            self.aria()?.unpause(&gid).await?;
+            self.engine()?.unpause(&gid).await?;
             self.with_job(id, |j| j.state = JobState::Downloading).await;
         }
         self.emit().await;
@@ -586,8 +585,8 @@ impl Manager {
             .flatten();
         self.emit().await;
         if let Some((gid, work_dir)) = taken {
-            if let (Some(gid), Ok(aria)) = (gid, self.aria()) {
-                aria.remove(&gid).await?;
+            if let (Some(gid), Ok(engine)) = (gid, self.engine()) {
+                engine.remove(&gid).await?;
             }
             if let Some(dir) = work_dir {
                 let _ = tokio::fs::remove_dir_all(dir).await;
@@ -641,9 +640,9 @@ impl Manager {
     }
 
     async fn tick(self: &Arc<Self>) {
-        let Ok(aria) = self.aria() else { return };
+        let Ok(engine) = self.engine() else { return };
 
-        // 1. Refresh progress of everything aria2 is working on.
+        // 1. Refresh progress of everything the engine is working on.
         let active: Vec<(u64, String)> = self
             .jobs
             .lock()
@@ -654,7 +653,7 @@ impl Manager {
             .collect();
         let mut changed = !active.is_empty();
         for (id, gid) in active {
-            let status = aria.status(&gid).await;
+            let status = engine.status(&gid).await;
             let finished = self
                 .with_job(id, |j| {
                     if !matches!(j.state, JobState::Downloading | JobState::Paused) {
@@ -662,7 +661,7 @@ impl Manager {
                     }
                     match status {
                         Ok(s) => {
-                            // aria2 counts whole pieces, which overlap neighbouring
+                            // The engine counts whole pieces, which overlap neighbouring
                             // files, so scale its progress to the game's real size.
                             let size = j.info.as_ref().map_or(s.total_length, |i| i.size);
                             j.total = size;
@@ -674,7 +673,7 @@ impl Manager {
                             };
                             j.speed = s.download_speed;
                             j.peers = s.connections;
-                            match s.status.as_str() {
+                            match s.status {
                                 "complete" => {
                                     j.state = JobState::Moving;
                                     j.speed = 0;
@@ -760,8 +759,8 @@ impl Manager {
                 .await
                 .with_context(|| format!("cannot create {}", work_dir.display()))?;
             let gid = self
-                .aria()?
-                .add_torrent(&torrent, &work_dir, info.aria2_index()?)
+                .engine()?
+                .add_torrent(&torrent, &work_dir, info.file_index()?)
                 .await?;
             Ok::<_, anyhow::Error>((gid, work_dir))
         }
@@ -798,8 +797,8 @@ impl Manager {
             })
             .await
             .flatten();
-        if let (Some(gid), Ok(aria)) = (orphan, self.aria()) {
-            let _ = aria.remove(&gid).await;
+        if let (Some(gid), Ok(engine)) = (orphan, self.engine()) {
+            let _ = engine.remove(&gid).await;
         }
         self.emit().await;
     }
@@ -855,8 +854,8 @@ impl Manager {
         else {
             return;
         };
-        if let Ok(aria) = self.aria() {
-            let _ = aria.remove(&gid).await;
+        if let Ok(engine) = self.engine() {
+            let _ = engine.remove(&gid).await;
         }
         let result = tokio::task::spawn_blocking(move || move_out(&work_dir, &dest_dir, &info))
             .await
@@ -956,7 +955,7 @@ impl Manager {
     }
 
     pub async fn shutdown(&self) {
-        if let Some(a) = &self.aria {
+        if let Some(a) = &self.engine {
             a.shutdown().await;
         }
     }
@@ -1047,14 +1046,18 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn e2e_single_file() {
+        // RUST_LOG=librqbit=debug shows trackers, peers and pieces.
+        let _ = tracing_subscriber::fmt()
+            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+            .try_init();
         let torrent = std::fs::read(std::env::var("TEST_TORRENT").unwrap()).unwrap();
         let base = std::env::temp_dir().join(format!("rf-e2e-{}", std::process::id()));
         let work = base.join(PARTIAL_DIR).join("1");
         std::fs::create_dir_all(&work).unwrap();
-        let aria = Aria2::spawn(&aria2::find_binary()).await.unwrap();
-        let gid = aria.add_torrent(&torrent, &work, 3065).await.unwrap();
+        let engine = Engine::start(base.join("engine")).await.unwrap();
+        let gid = engine.add_torrent(&torrent, &work, 3064).await.unwrap();
         loop {
-            let s = aria.status(&gid).await.unwrap();
+            let s = engine.status(&gid).await.unwrap();
             println!(
                 "{} {}/{} {}B/s peers={}",
                 s.status, s.completed_length, s.total_length, s.download_speed, s.connections
@@ -1065,7 +1068,7 @@ mod tests {
             assert_ne!(s.status, "error", "{:?}", s.error_message);
             tokio::time::sleep(Duration::from_secs(2)).await;
         }
-        aria.remove(&gid).await.unwrap();
+        engine.remove(&gid).await.unwrap();
         let info = RomInfo {
             id: 1,
             file_name: "Original Xbox Game Support - December 2005 (1.2) (USA, Canada).zip".into(),
@@ -1077,7 +1080,7 @@ mod tests {
         let out = move_out(&work, &base, &info).unwrap();
         println!("moved to {}", out.display());
         assert!(out.is_file() && !work.exists());
-        aria.shutdown().await;
+        engine.shutdown().await;
         std::fs::remove_dir_all(&base).unwrap();
     }
 }
