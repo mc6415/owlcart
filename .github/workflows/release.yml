@@ -188,6 +188,10 @@ jobs:
           KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
+          if [ -z "$KEYSTORE" ] || [ -z "$PASSWORD" ]; then
+            echo "::error::The ANDROID_KEYSTORE_BASE64 and ANDROID_KEYSTORE_PASSWORD secrets aren't set."
+            exit 1
+          fi
           echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/owlcart-release.jks"
           printf 'storeFile=%s\nkeyAlias=owlcart\npassword=%s\n' "$RUNNER_TEMP/owlcart-release.jks" "$PASSWORD" \
             > src-tauri/gen/android/keystore.properties
@@ -208,10 +212,15 @@ jobs:
             --data-binary @"$apk" \
             "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$ID/assets?name=Owlcart_${VERSION}_android_arm64.apk" \
             --output /dev/null
-          # Mention the APK in the release notes.
-          body=$(gh api "repos/$GITHUB_REPOSITORY/releases/$ID" --jq .body)
-          printf '%s\n**Android:** install the `.apk` (64-bit ARM; allow installs from unknown sources).\n' "$body" > notes.md
-          gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$ID" -F body=@notes.md --jq .html_url
+          # Mention the APK in the release notes, under the Linux line. The tag
+          # is passed again: editing a draft without it drops the tag, and the
+          # release would then publish untagged.
+          gh api "repos/$GITHUB_REPOSITORY/releases/$ID" --jq .body > notes.md
+          line='**Android:** install the `.apk` (64-bit ARM; allow installs from unknown sources).'
+          awk -v line="$line" '{ print } /^\*\*Linux:\*\*/ && !done { print line; done = 1 }' notes.md > notes-android.md
+          grep -qF "$line" notes-android.md || printf '\n%s\n' "$line" >> notes-android.md
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$ID" \
+            -f tag_name="v$VERSION" -F body=@notes-android.md --jq .html_url
 
   publish:
     name: Publish release
