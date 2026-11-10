@@ -725,6 +725,12 @@ impl Session {
                     b
                 };
 
+                // Owlcart: reqwest's default certificate checker on Android
+                // needs Java-side setup the app doesn't do, and aborts the
+                // app on the first HTTPS tracker or web seed. Use built-in roots.
+                #[cfg(target_os = "android")]
+                let builder = builder.tls_backend_preconfigured(android_tls_config()?);
+
                 builder
                     .user_agent(&client_name_and_version)
                     .build()
@@ -1864,4 +1870,19 @@ mod tests {
         assert_eq!(parsed.info, generated_parsed.info);
         assert_eq!(parsed_trackers, get_trackers(&generated_parsed));
     }
+}
+
+/// Owlcart: rustls set up with the Mozilla root certificates (webpki-roots),
+/// used on Android in place of reqwest's platform certificate checker.
+#[cfg(target_os = "android")]
+fn android_tls_config() -> anyhow::Result<rustls::ClientConfig> {
+    let mut roots = rustls::RootCertStore::empty();
+    roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    Ok(rustls::ClientConfig::builder_with_provider(Arc::new(
+        rustls::crypto::aws_lc_rs::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()
+    .context("setting up TLS")?
+    .with_root_certificates(roots)
+    .with_no_client_auth())
 }

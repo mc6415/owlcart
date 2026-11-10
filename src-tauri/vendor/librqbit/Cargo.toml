@@ -387,3 +387,10 @@ features = [
     "Win32_System_IO",
     "Win32_System_Ioctl",
 ]
+
+# Owlcart: on Android, trackers and web seeds use these roots (see session.rs).
+[target."cfg(target_os = \"android\")".dependencies.rustls]
+version = "0.23"
+
+[target."cfg(target_os = \"android\")".dependencies.webpki-roots]
+version = "1"

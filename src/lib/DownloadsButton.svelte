@@ -195,13 +195,15 @@
       animation: none;
     }
   }
-  /* Android: downloads slide up as a full-width sheet from the bottom. */
+  /* Android: downloads slide up as a full-width sheet from the bottom.
+     The app (which positions this, as it's transformed) can run past the
+     bottom of the screen by the header's height (--chrome-pad, see +page). */
   :global(html.android) .pop {
     position: fixed;
     top: auto;
     left: 0;
     right: 0;
-    bottom: 0;
+    bottom: var(--chrome-pad, 0px);
     max-height: 72vh;
     border-radius: 16px 16px 0 0;
     border-width: 1px 0 0;
