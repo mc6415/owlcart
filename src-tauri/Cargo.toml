@@ -1,6 +1,6 @@
 [package]
 name = "owlcart"
-version = "0.5.1"
+version = "0.6.0"
 description = "Browse minerva-archive.org listings and download single files from their torrents"
 authors = ["you"]
 edition = "2024"
