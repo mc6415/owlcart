@@ -1,6 +1,6 @@
-mod aria2;
 mod covers;
 mod data;
+mod engine;
 mod extract;
 mod fetch;
 mod jobs;
@@ -29,8 +29,8 @@ struct EngineStatus {
 #[tauri::command]
 fn engine_status(mgr: State<'_, Mgr>) -> EngineStatus {
     EngineStatus {
-        ok: mgr.aria.is_some(),
-        error: mgr.aria_error.clone(),
+        ok: mgr.engine.is_some(),
+        error: mgr.engine_error.clone(),
     }
 }
 

@@ -80,12 +80,12 @@ impl RomInfo {
         Ok(page_url.join(&format!("/assets/{path}"))?)
     }
 
-    /// aria2c's --select-file is 1-based; so_id is 0-based.
-    pub fn aria2_index(&self) -> Result<usize> {
+    /// This file's 0-based position in the console's torrent (BEP 53 `so=`).
+    pub fn file_index(&self) -> Result<usize> {
         let so = self
             .so_id
             .ok_or_else(|| anyhow!("missing file index (so_id)"))?;
-        Ok(so as usize + 1)
+        Ok(so as usize)
     }
 }
 
@@ -248,7 +248,7 @@ mod tests {
         window.addEventListener("load", () => {});</script>"#;
         let r = parse_rom_page(html).unwrap();
         assert_eq!(r.file_name, "A; B.zip");
-        assert_eq!(r.aria2_index().unwrap(), 4235);
+        assert_eq!(r.file_index().unwrap(), 4234);
         assert_eq!(
             r.console_folder().as_deref(),
             Some("Sega - Mega CD & Sega CD")

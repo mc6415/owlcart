@@ -654,7 +654,7 @@
 
   {#if engineError}
     <div class="banner">
-      aria2c didn't start: {engineError}. Install aria2, or put an aria2c binary next to the app.
+      The download engine didn't start: {engineError}
     </div>
   {/if}
   {#if error}

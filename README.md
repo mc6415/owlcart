@@ -27,7 +27,7 @@
   <a href="https://svelte.dev"><img src="https://img.shields.io/badge/Svelte_5-FF3E00?logo=svelte&logoColor=white" alt="Svelte 5" /></a>
   <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
   <a href="https://vite.dev"><img src="https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white" alt="Vite" /></a>
-  <a href="https://aria2.github.io"><img src="https://img.shields.io/badge/aria2-downloads-555" alt="aria2" /></a>
+  <a href="https://github.com/ikatson/rqbit"><img src="https://img.shields.io/badge/librqbit-BitTorrent-555" alt="librqbit" /></a>
   <br />
   <img src="https://img.shields.io/badge/Windows-0078D4?logo=windows&logoColor=white" alt="Windows" />
   <img src="https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black" alt="Linux" />
@@ -72,10 +72,12 @@ Grab the latest build from [**Releases**](../../releases/latest).
 
 | Platform | File | Notes |
 | --- | --- | --- |
-| **Windows** | `Owlcart_x.y.z_x64-setup.exe` | Includes aria2. The installer isn't code-signed yet, so Windows SmartScreen may warn the first time; choose *More info → Run anyway*. |
-| **Linux (Debian, Ubuntu)** | `.deb` | Installs the `aria2` dependency for you. |
-| **Linux (Fedora, openSUSE)** | `.rpm` | Installs the `aria2` dependency for you. |
-| **Linux (anything else)** | `.AppImage` | Install your distro's `aria2` package first, then `chmod +x` and run. |
+| **Windows** | `Owlcart_x.y.z_x64-setup.exe` | The installer isn't code-signed yet, so Windows SmartScreen may warn the first time; choose *More info → Run anyway*. |
+| **Linux (Debian, Ubuntu)** | `.deb` | |
+| **Linux (Fedora, openSUSE)** | `.rpm` | |
+| **Linux (anything else)** | `.AppImage` | `chmod +x` and run. |
+
+Everything is built in, including the BitTorrent engine, so there's nothing else to install.
 
 ## Getting started
 
@@ -112,14 +114,14 @@ downloads only the game you choose:
 
 1. It reads the console's listing on minerva-archive.org. Each game's page gives the
    console's `.torrent` and the game's position inside it.
-2. The `.torrent` is downloaded once and cached. A private [aria2](https://aria2.github.io/)
-   instance, driven over JSON-RPC, fetches just that one file (`--select-file`).
+2. The `.torrent` is downloaded once and cached. Owlcart's built-in BitTorrent engine
+   ([librqbit](https://github.com/ikatson/rqbit)) fetches just that one file.
 3. The game downloads into a hidden temporary folder. Torrent pieces overlap neighbouring
-   files, so aria2 writes small fragments of those too, and they're thrown away. Then the
+   files, so small fragments of those get written too, and they're thrown away. Then the
    game is moved into its console folder and unzipped.
 
-aria2 handles one download per torrent at a time, so games from the same console queue up,
-while different consoles download in parallel.
+The engine handles one download per torrent at a time, so games from the same console queue
+up, while different consoles download in parallel.
 
 ## Building from source
 
@@ -132,11 +134,9 @@ npm run tauri dev      # run in development
 npm run tauri build    # installers end up in src-tauri/target/release/bundle/
 ```
 
-**aria2c**
-- **Windows:** `scripts/fetch-aria2c.ps1` runs automatically before dev and build. It
-  downloads the official static `aria2c.exe` and bundles it with the app.
-- **Linux:** install your distro's `aria2` package. The `.deb` and `.rpm` declare it as a dependency.
-- Set `OWLCART_ARIA2C=/path/to/aria2c` to use a specific binary.
+**librqbit** is used from a local copy in `src-tauri/vendor/librqbit` with one change: a
+larger per-peer read buffer, needed for Minerva's very large torrents. See
+`OWLCART-CHANGES.md` there.
 
 ## Game data
 
@@ -219,13 +219,13 @@ cargo test live_fetch -- --ignored --nocapture
 src/                 Svelte UI (routes/+page.svelte, lib/ components)
 src-tauri/src/       Rust backend
   jobs.rs            download queue, settings, extraction hand-off
-  aria2.rs           private aria2c instance over JSON-RPC
+  engine.rs          built-in BitTorrent engine (librqbit)
   scrape.rs          Minerva listing and game page parsing
   data.rs            reading published/fetched game data, with disk cache
   fetch.rs           in-app cover and details fetching
   covers.rs          SteamGridDB lookups and title matching
   extract.rs         safe .zip extraction
-scripts/             data builder, version bump, aria2c download for Windows
+scripts/             data builder and version bump
 data/                published covers and details
 consoles.json        consoles shown in the picker
 ```
@@ -235,7 +235,7 @@ consoles.json        consoles shown in the picker
 - Games are hosted by the [Minerva Archive](https://minerva-archive.org) community. Owlcart is an
   independent client and isn't affiliated with Minerva.
 - Game details from [IGDB.com](https://www.igdb.com). Cover art from [SteamGridDB](https://www.steamgriddb.com).
-- Downloads by [aria2](https://aria2.github.io/). Flags from [flag-icons](https://github.com/lipis/flag-icons).
+- Downloads by [librqbit](https://github.com/ikatson/rqbit) (Apache-2.0). Flags from [flag-icons](https://github.com/lipis/flag-icons).
   Fonts: Space Grotesk and JetBrains Mono.
 
 Only download games you're entitled to under the laws where you live.
