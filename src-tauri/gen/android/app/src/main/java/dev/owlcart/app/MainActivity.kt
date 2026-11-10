@@ -26,7 +26,10 @@ class MainActivity : TauriActivity() {
   // them again whenever the app returns to the front.
   override fun onWindowFocusChanged(hasFocus: Boolean) {
     super.onWindowFocusChanged(hasFocus)
-    if (hasFocus) hideSystemBars()
+    if (hasFocus) {
+      hideSystemBars()
+      webView()
+    }
   }
 
   /**
@@ -70,6 +73,9 @@ class MainActivity : TauriActivity() {
       return null
     }
     web = find(window.decorView)
+    // Using the D-pad gives the web view focus, and Android then tints the
+    // whole view to show it. The page shows its own highlight, so turn that off.
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) web?.defaultFocusHighlightEnabled = false
     return web
   }
 
