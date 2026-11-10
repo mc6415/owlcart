@@ -43,6 +43,28 @@
       "name": "PlayStation 2",
       "titles": 6787,
       "updated": "1794259762"
+    },
+    "redump-sony-playstation-3": {
+      "covers": 1693,
+      "details": 1635,
+      "folder": "ps3",
+      "group": "Sony",
+      "igdb": "ps3",
+      "listing": "https://minerva-archive.org/browse/Redump/Sony%20-%20PlayStation%203/",
+      "name": "PlayStation 3",
+      "titles": 2265,
+      "updated": "1794269122"
+    },
+    "redump-sony-playstation-portable": {
+      "covers": 1506,
+      "details": 1403,
+      "folder": "psp",
+      "group": "Sony",
+      "igdb": "psp",
+      "listing": "https://minerva-archive.org/browse/Redump/Sony%20-%20PlayStation%20Portable/",
+      "name": "PlayStation Portable",
+      "titles": 2222,
+      "updated": "1794267312"
     }
   },
   "version": 1
