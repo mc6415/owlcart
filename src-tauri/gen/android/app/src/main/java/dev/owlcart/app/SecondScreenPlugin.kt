@@ -81,6 +81,9 @@ class SecondScreenPlugin(private val activity: Activity) : Plugin(activity) {
           super.onCreate(savedInstanceState)
           val web = WebView(context)
           web.settings.javaScriptEnabled = true
+          if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            web.defaultFocusHighlightEnabled = false
+          }
           web.addJavascriptInterface(Bridge(), "OwlBridge")
           web.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
