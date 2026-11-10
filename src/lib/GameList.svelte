@@ -23,6 +23,10 @@
     downloaded?: Set<string>;
     /** Download progress (0..1) of games being fetched right now. */
     progress?: Map<string, number>;
+    /** Number of versions of each card's game (regions, revisions), by URL. */
+    versionCounts?: Map<string, number>;
+    /** IGDB [rating 0-100, review count] of each rated card's game, by URL. */
+    ratings?: Map<string, readonly [number, number]>;
     /** Games that have just finished, for a brief highlight. */
     justDone?: Set<string>;
     /** Changes when a new console opens, to play the entrance animation. */
@@ -39,6 +43,8 @@
     downloaded = new Set(),
     progress = new Map(),
     justDone = new Set(),
+    versionCounts = new Map(),
+    ratings = new Map(),
     introKey = "",
   }: Props = $props();
 
@@ -141,6 +147,7 @@
             onclick={() => onOpenFolder(e.url)}>
             <span class="lead"><Icon name="folder" size={15} /></span>
             <span class="title">{e.name}</span>
+            <span></span>
             <span class="size">{e.size}</span>
             <span></span>
           </button>
@@ -180,6 +187,17 @@
                   <span class="tag">{t}</span>
                 {/if}
               {/each}
+              {#if (versionCounts.get(e.url) ?? 1) > 1}
+                <span class="tag versions" title="Open the game to pick another version">
+                  {versionCounts.get(e.url)} versions
+                </span>
+              {/if}
+            </span>
+            <span class="score">
+              {#if ratings.get(e.url)}
+                {@const [r, count] = ratings.get(e.url)!}
+                <b title="IGDB rating, from {count} {count === 1 ? 'review' : 'reviews'}">{r}</b>
+              {/if}
             </span>
             <span class="size">{e.size}</span>
             <span class="act">
@@ -231,7 +249,7 @@
     box-sizing: border-box;
     width: 100%;
     display: grid;
-    grid-template-columns: 30px 1fr 84px 40px;
+    grid-template-columns: 30px 1fr 62px 84px 40px;
     align-items: center;
     gap: 8px;
     padding: 0 10px 0 12px;
@@ -284,6 +302,20 @@
     color: var(--muted);
     background: var(--chip);
     vertical-align: 1px;
+  }
+  .score {
+    text-align: right;
+  }
+  .score b {
+    padding: 1px 7px;
+    border-radius: 9px;
+    background: var(--chip);
+    color: var(--text);
+    font: 600 11px var(--mono);
+  }
+  .tag.versions {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
   }
   .flags {
     display: inline-flex;

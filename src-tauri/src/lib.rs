@@ -5,9 +5,9 @@ mod engine;
 mod extract;
 mod fetch;
 mod folder_picker;
-mod second_screen;
 mod jobs;
 mod scrape;
+mod second_screen;
 
 use jobs::{EnqueueItem, Job, Manager, Settings};
 use scrape::Listing;
@@ -113,6 +113,14 @@ async fn fetch_status(mgr: State<'_, Mgr>) -> Res<fetch::FetchStatus> {
 #[tauri::command]
 async fn cover_titles(mgr: State<'_, Mgr>, slug: String) -> Res<Option<Vec<String>>> {
     mgr.cover_titles(&slug).await.map_err(err)
+}
+
+#[tauri::command]
+async fn ratings(
+    mgr: State<'_, Mgr>,
+    slug: String,
+) -> Res<std::collections::HashMap<String, (u64, u64)>> {
+    mgr.ratings(&slug).await.map_err(err)
 }
 
 #[tauri::command]
@@ -222,6 +230,7 @@ pub fn run() {
             console_index,
             downloaded,
             cover_titles,
+            ratings,
             start_fetch,
             cancel_fetch,
             fetch_status,
