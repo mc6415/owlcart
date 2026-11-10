@@ -65,11 +65,34 @@ jobs:
           # Clear out a draft left by an earlier failed run of the same version.
           old=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.draft and .tag_name == \"v$VERSION\") | .id")
           for id in $old; do gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id"; done
+
+          # Changelog: every commit since the previous release, minus version bumps.
+          prev=$(git tag --list 'v[0-9]*' | sed 's/^v//' | sort -V | tail -n 1)
+          if [ -n "$prev" ] && git merge-base --is-ancestor "v$prev" HEAD; then
+            range="v$prev..HEAD"
+          else
+            range="HEAD"
+          fi
+          changes=$(git log --no-merges --reverse --format="- %s ([%h](https://github.com/$GITHUB_REPOSITORY/commit/%H))" $range \
+            | grep -vE '^- (Bump version|Release v)' || true)
+          {
+            echo "**Windows:** download the \`-setup.exe\` installer."
+            echo "**Linux:** the \`.AppImage\` runs anywhere; or install the \`.deb\` / \`.rpm\`."
+            echo
+            echo "## What's changed"
+            echo
+            echo "${changes:-- Maintenance release.}"
+            if [ "$range" != "HEAD" ]; then
+              echo
+              echo "**Full changelog:** https://github.com/$GITHUB_REPOSITORY/compare/v$prev...v$VERSION"
+            fi
+          } > notes.md
+          cat notes.md
+
           id=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" \
             -f tag_name="v$VERSION" -f target_commitish="$GITHUB_SHA" \
             -f name="Owlcart v$VERSION" -F draft=true \
-            -f body="**Windows:** download the \`-setup.exe\` installer.
-          **Linux:** the \`.AppImage\` runs anywhere; or install the \`.deb\` / \`.rpm\`." \
+            -F body=@notes.md \
             --jq .id)
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
