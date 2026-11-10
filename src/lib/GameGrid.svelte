@@ -7,6 +7,7 @@
   import Icon from "./Icon.svelte";
   import ProgressRing from "./ProgressRing.svelte";
   import { reduceMotion } from "./motion";
+  import { isAndroid } from "./platform";
 
   interface Props {
     entries: Entry[];
@@ -47,9 +48,10 @@
     introKey = "",
   }: Props = $props();
 
-  const PAD = 14;
-  const GAP = 14;
-  const MIN_CARD = 150;
+  // Smaller cards and gaps on Android, so phones in portrait get 2+ columns.
+  const PAD = isAndroid ? 10 : 14;
+  const GAP = isAndroid ? 10 : 14;
+  const MIN_CARD = isAndroid ? 104 : 150;
   const CAPTION = 50;
 
   let scrollTop = $state(0);
@@ -423,6 +425,20 @@
     transform: translateY(4px);
     transition: opacity 0.15s, transform 0.15s;
   }
+  /* Touch screens have no hover, so keep the buttons visible. (Android
+     handhelds with gamepads can report hover support, so check both.) */
+  @media (hover: none) {
+    .dl,
+    .check {
+      opacity: 1 !important;
+      transform: none !important;
+    }
+  }
+  :global(html.android) .dl,
+  :global(html.android) .check {
+    opacity: 1 !important;
+    transform: none !important;
+  }
   .card:hover .dl,
   .dl:focus-visible {
     opacity: 1;
@@ -478,5 +494,11 @@
     color: var(--muted);
     padding: 16px 14px;
     margin: 0;
+  }
+  :global(html.no-color-mix) .cursor .art {
+    box-shadow: 0 0 0 2px var(--text);
+  }
+  :global(html.no-color-mix) .sel .art {
+    box-shadow: 0 0 0 2px var(--accent);
   }
 </style>

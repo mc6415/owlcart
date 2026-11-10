@@ -115,4 +115,7 @@
       opacity: 1;
     }
   }
+  :global(html.no-color-mix) .shimmer {
+    background: var(--field);
+  }
 </style>

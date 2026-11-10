@@ -1,0 +1,398 @@
+<!doctype html>
+<!--
+  Owlcart's second screen (dual-screen devices like the AYN Thor). Shown by
+  SecondScreenPlugin.kt. The app pushes state with window.render(state); taps
+  go back through OwlBridge.send(json). Plain HTML so it needs no build step.
+-->
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --bg: #f7f6fa;
+    --panel: #fbfafd;
+    --text: #1f1b2b;
+    --muted: #716b82;
+    --line: #e4e0ec;
+    --field: #efecf4;
+    --accent: #7b4fd6;
+    --accent-text: #fff;
+    --ok: #2f9e6a;
+    color-scheme: light;
+  }
+  /* The app sends its theme (this web view doesn't follow the system's). */
+  :root[data-theme="dark"] {
+    --bg: #14121a;
+    --panel: #19161f;
+    --text: #e7e3ef;
+    --muted: #8e879e;
+    --line: #2a2533;
+    --field: #221e2b;
+    --accent: #a585f2;
+    --accent-text: #170f2b;
+    --ok: #5fd39b;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    overflow: hidden;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+  }
+  button {
+    font: inherit;
+    color: inherit;
+    border: 0;
+    background: none;
+    cursor: pointer;
+  }
+
+  /* ---- the game ---- */
+  .game {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    gap: 18px;
+    padding: 18px 18px 0;
+    position: relative;
+  }
+  .backdrop {
+    position: fixed;
+    inset: 0 0 auto 0;
+    height: 55%;
+    background-size: cover;
+    background-position: center 25%;
+    opacity: 0.22;
+    -webkit-mask-image: linear-gradient(#000, transparent);
+    mask-image: linear-gradient(#000, transparent);
+    pointer-events: none;
+    z-index: 0;
+    transition: opacity 0.3s;
+  }
+  .left {
+    position: relative;
+    z-index: 1;
+    width: 30%;
+    max-width: 210px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .cover {
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    border-radius: 10px;
+    object-fit: cover;
+    background: var(--field);
+    box-shadow: 0 10px 28px rgb(0 0 0 / 0.35);
+  }
+  .cover.none {
+    display: grid;
+    place-items: center;
+    padding: 12px;
+    text-align: center;
+    font-weight: 700;
+    color: var(--muted);
+  }
+  .details-btn {
+    padding: 9px 0;
+    border-radius: 9px;
+    background: var(--field);
+    border: 1px solid var(--line);
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .right {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-bottom: 14px;
+  }
+  .console {
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  h1 {
+    margin: 2px 0 4px;
+    font-size: 24px;
+    line-height: 1.2;
+  }
+  .meta {
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .summary {
+    margin: 10px 0 0;
+    font-size: 14px;
+  }
+  /* Kept short so the download buttons stay in view; tap to read it all. */
+  .summary.clamp {
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  h2 {
+    margin: 14px 0 6px;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .version {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 8px 8px 12px;
+    margin-bottom: 6px;
+    border-radius: 10px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+  }
+  .version .info {
+    flex: 1;
+    min-width: 0;
+  }
+  .version .label {
+    font-weight: 600;
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .version .sub {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .dl {
+    flex-shrink: 0;
+    min-width: 108px;
+    padding: 9px 14px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font-weight: 700;
+    font-size: 14px;
+  }
+  .dl:active {
+    transform: scale(0.97);
+  }
+  .dl[disabled] {
+    background: var(--field);
+    color: var(--muted);
+  }
+  .dl.have[disabled] {
+    color: var(--ok);
+  }
+  .bar {
+    height: 4px;
+    margin-top: 5px;
+    border-radius: 2px;
+    background: var(--field);
+    overflow: hidden;
+  }
+  .bar i {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.4s;
+  }
+
+  /* ---- nothing selected ---- */
+  .empty {
+    flex: 1;
+    display: grid;
+    place-items: center;
+    text-align: center;
+    color: var(--muted);
+    padding: 24px;
+  }
+  .empty b {
+    display: block;
+    color: var(--text);
+    font-size: 20px;
+    margin-bottom: 4px;
+  }
+
+  /* ---- downloads strip ---- */
+  .jobs {
+    flex-shrink: 0;
+    border-top: 1px solid var(--line);
+    background: var(--panel);
+    padding: 8px 18px 10px;
+    max-height: 30%;
+    overflow-y: auto;
+  }
+  .jobs:empty {
+    display: none;
+  }
+  .job {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 13px;
+    margin-top: 4px;
+  }
+  .job .name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .job .state {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+</style>
+</head>
+<body>
+  <div class="empty" id="empty">
+    <div><b>Owlcart</b>Pick a game on the top screen to see it here.</div>
+  </div>
+  <div class="game" id="game" hidden>
+    <div class="backdrop" id="backdrop"></div>
+    <div class="left">
+      <div id="coverBox"></div>
+      <button class="details-btn" id="detailsBtn">Details</button>
+    </div>
+    <div class="right">
+      <div class="scroll">
+        <div class="console" id="console"></div>
+        <h1 id="title"></h1>
+        <div class="meta" id="meta"></div>
+        <p class="summary clamp" id="summary"></p>
+        <h2>Versions</h2>
+        <div id="versions"></div>
+      </div>
+    </div>
+  </div>
+  <div class="jobs" id="jobs"></div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const send = (msg) => window.OwlBridge && OwlBridge.send(JSON.stringify(msg));
+  let current = null;
+
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+
+  function versionRow(v) {
+    const row = el("div", "version");
+    const info = el("div", "info");
+    info.append(el("div", "label", v.label), el("div", "sub", v.sub));
+    if (v.progress != null) {
+      const bar = el("div", "bar");
+      const fill = el("i");
+      fill.style.width = Math.round(v.progress * 100) + "%";
+      bar.append(fill);
+      info.append(bar);
+    }
+    const btn = el("button", "dl");
+    if (v.status === "have") {
+      btn.textContent = "Downloaded";
+      btn.disabled = true;
+      btn.classList.add("have");
+    } else if (v.status === "queued") {
+      btn.textContent = v.progress != null ? Math.round(v.progress * 100) + "%" : "Queued";
+      btn.disabled = true;
+    } else {
+      btn.textContent = "Download";
+      btn.onclick = () => {
+        btn.disabled = true;
+        btn.textContent = "Queued";
+        send({ action: "download", url: v.url });
+      };
+    }
+    row.append(info, btn);
+    return row;
+  }
+
+  function renderGame(g) {
+    $("empty").hidden = !!g;
+    $("game").hidden = !g;
+    if (!g) return;
+    const changed = !current || current.title !== g.title;
+    $("console").textContent = g.console || "";
+    $("title").textContent = g.title;
+    $("meta").textContent = (g.meta || []).join(" · ");
+    $("summary").textContent = g.summary || "";
+    if (changed) $("summary").classList.add("clamp");
+    $("backdrop").style.backgroundImage = g.hero ? `url("${g.hero}")` : "none";
+    if (changed) {
+      const box = $("coverBox");
+      box.textContent = "";
+      if (g.cover) {
+        const img = el("img", "cover");
+        img.src = g.cover;
+        img.alt = "";
+        box.append(img);
+      } else {
+        box.append(el("div", "cover none", g.title));
+      }
+      document.querySelector(".scroll").scrollTop = 0;
+    }
+    const list = $("versions");
+    list.textContent = "";
+    (g.versions || []).forEach((v) => list.append(versionRow(v)));
+    $("detailsBtn").onclick = () => send({ action: "details", title: g.title });
+  }
+
+  function renderJobs(jobs) {
+    const box = $("jobs");
+    box.textContent = "";
+    (jobs || []).forEach((j) => {
+      const row = el("div");
+      const line = el("div", "job");
+      line.append(el("span", "name", j.name), el("span", "state", j.status));
+      row.append(line);
+      if (j.progress != null) {
+        const bar = el("div", "bar");
+        const fill = el("i");
+        fill.style.width = Math.round(j.progress * 100) + "%";
+        bar.append(fill);
+        row.append(bar);
+      }
+      box.append(row);
+    });
+  }
+
+  $("summary").onclick = () => $("summary").classList.toggle("clamp");
+
+  window.render = (state) => {
+    document.documentElement.dataset.theme = state.theme === "dark" ? "dark" : "light";
+    renderGame(state.game || null);
+    renderJobs(state.jobs);
+    current = state.game || null;
+  };
+</script>
+</body>
+</html>

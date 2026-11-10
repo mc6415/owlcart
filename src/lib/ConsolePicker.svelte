@@ -3,6 +3,7 @@
   import { fly } from "svelte/transition";
   import { consoleFor, type ConsoleInfo } from "./consoles";
   import Icon from "./Icon.svelte";
+  import { isAndroid } from "./platform";
 
   interface Props {
     consoles: ConsoleInfo[];
@@ -55,7 +56,8 @@
     query = "";
     active = Math.max(0, selected ? filtered.indexOf(selected) : 0);
     await tick();
-    searchEl?.focus();
+    // On Android, focusing would pop up the keyboard over the list.
+    if (!isAndroid) searchEl?.focus();
     root?.querySelector(".item.active")?.scrollIntoView({ block: "center" });
   }
 
@@ -103,7 +105,7 @@
       <span class="name">{fallbackLabel}</span>
     {/if}
     <span class="grow"></span>
-    {#if loading}<span class="spinner"></span>{:else}<kbd class="hint">{shortcut}</kbd>{/if}
+    {#if loading}<span class="spinner"></span>{:else if !isAndroid}<kbd class="hint">{shortcut}</kbd>{/if}
     <svg class="chev" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
     </svg>

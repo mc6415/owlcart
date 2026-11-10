@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api, formatBytes, formatEta, type Job } from "./api";
   import Icon from "./Icon.svelte";
+  import { isAndroid } from "./platform";
 
   let { jobs, onError, limit = 5 }: { jobs: Job[]; onError: (msg: string) => void; limit?: number } = $props();
 
@@ -49,7 +50,7 @@
     {#if hasFinished}
       <button class="text" onclick={() => run(api.clearFinished())}>Clear finished</button>
     {/if}
-    <button class="icon" title="Open download folder" onclick={() => run(api.openDownloads())}>
+    <button class="icon" class:hidden={isAndroid} title="Open download folder" onclick={() => run(api.openDownloads())}>
       <Icon name="folder" />
     </button>
   </header>
@@ -68,7 +69,7 @@
             {#if j.state === "failed" || j.state === "cancelled"}
               <button class="icon" title="Retry" onclick={() => run(api.retry(j.id))}><Icon name="retry" size={14} /></button>
             {/if}
-            {#if j.state === "done" && j.output}
+            {#if j.state === "done" && j.output && !isAndroid}
               <button class="icon" title="Show in folder" onclick={() => run(api.revealFile(j.output!))}><Icon name="reveal" size={14} /></button>
             {/if}
             {#if !["done", "moving", "extracting", "cancelled"].includes(j.state)}
@@ -234,5 +235,8 @@
     color: var(--muted);
     padding: 12px 14px;
     margin: 0;
+  }
+  .hidden {
+    display: none;
   }
 </style>

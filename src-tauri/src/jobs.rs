@@ -69,11 +69,16 @@ fn default_data_url() -> String {
 
 impl Default for Settings {
     fn default() -> Self {
-        let base = dirs::download_dir()
+        // Android: a ROMs folder on the main storage, where emulators look.
+        #[cfg(target_os = "android")]
+        let download_dir = PathBuf::from("/storage/emulated/0/ROMs");
+        #[cfg(not(target_os = "android"))]
+        let download_dir = dirs::download_dir()
             .or_else(dirs::home_dir)
-            .unwrap_or_else(|| PathBuf::from("."));
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("Owlcart");
         Self {
-            download_dir: base.join("Owlcart"),
+            download_dir,
             max_active: 3,
             steamgriddb_key: String::new(),
             igdb_client_id: String::new(),
@@ -171,6 +176,8 @@ pub struct Manager {
     data: DataSource,
     /// Default home for data fetched in the app (Settings -> Game data).
     app_data: PathBuf,
+    /// Game data shipped inside the app, once unpacked (see bundled.rs).
+    bundled: std::sync::OnceLock<PathBuf>,
     fetcher: Fetcher,
 }
 
@@ -197,13 +204,14 @@ impl Manager {
             .timeout(Duration::from_secs(60))
             .build()
             .expect("http client");
-        Arc::new(Self {
+        let mgr = Arc::new(Self {
             app,
             engine,
             engine_error,
             covers: Covers::new(http.clone(), cache_dir.clone()),
             data: DataSource::new(http.clone(), cache_dir.clone()),
             app_data: data_dir.join("data"),
+            bundled: std::sync::OnceLock::new(),
             fetcher: Fetcher::default(),
             http,
             jobs: Mutex::new(Vec::new()),
@@ -213,7 +221,26 @@ impl Manager {
             settings_path,
             cache_dir,
             resolve_limit: Semaphore::new(4),
-        })
+        });
+
+        // Unpack the game data bundled with this build, then tell the UI so
+        // covers and details appear without a restart.
+        {
+            let mgr = mgr.clone();
+            tokio::spawn(async move {
+                let cache = mgr.cache_dir.clone();
+                match tokio::task::spawn_blocking(move || crate::bundled::unpack(&cache)).await {
+                    Ok(Ok(Some(dir))) => {
+                        let _ = mgr.bundled.set(dir);
+                        let _ = mgr.app.emit("data-ready", ());
+                    }
+                    Ok(Ok(None)) => {}
+                    Ok(Err(e)) => eprintln!("bundled game data unavailable: {e:#}"),
+                    Err(e) => eprintln!("bundled game data unavailable: {e}"),
+                }
+            });
+        }
+        mgr
     }
 
     fn engine(&self) -> Result<&Engine> {
@@ -267,18 +294,12 @@ impl Manager {
         Ok(())
     }
 
-    /// Cover for a game: the published manifest first, then a live lookup
-    /// if the user has their own API key.
     /// Cover for a game: the published data first, then a live lookup if
     /// the user has their own SteamGridDB key.
     pub async fn cover_art(&self, title: &str, slug: &str) -> Result<Option<String>> {
-        let (key, base) = {
-            let s = self.settings.lock().await;
-            (s.steamgriddb_key.clone(), s.data_url.clone())
-        };
-        let local = self.local_data().await.to_string_lossy().into_owned();
-        for b in [local.as_str(), base.as_str()] {
-            if let Some(Some(url)) = self.data.cover(b, slug, title).await? {
+        let key = self.settings.lock().await.steamgriddb_key.clone();
+        for b in self.sources().await {
+            if let Some(Some(url)) = self.data.cover(&b, slug, title).await? {
                 return Ok(Some(url));
             }
         }
@@ -288,15 +309,13 @@ impl Manager {
         Ok(None)
     }
 
-    /// Titles that have cover art on a console, from local and hosted data.
-    /// None when neither has cover data for it (so nothing should be hidden).
+    /// Titles that have cover art on a console, from every data source.
+    /// None when none has cover data for it (so nothing should be hidden).
     pub async fn cover_titles(&self, slug: &str) -> Result<Option<Vec<String>>> {
-        let base = self.settings.lock().await.data_url.clone();
-        let local = self.local_data().await.to_string_lossy().into_owned();
         let mut any = false;
         let mut titles = std::collections::BTreeSet::new();
-        for b in [local.as_str(), base.as_str()] {
-            let map = self.data.covers_map(b, slug).await.unwrap_or_default();
+        for b in self.sources().await {
+            let map = self.data.covers_map(&b, slug).await.unwrap_or_default();
             if let Some(m) = map.as_object() {
                 any = true;
                 titles.extend(
@@ -309,29 +328,43 @@ impl Manager {
         Ok(any.then(|| titles.into_iter().collect()))
     }
 
-    /// Consoles with data: hosted ones, overlaid with anything fetched locally.
+    /// Consoles with data, merged from every source (higher priority wins).
     pub async fn console_index(&self) -> Result<serde_json::Value> {
-        let base = self.settings.lock().await.data_url.clone();
-        let mut all = self.data.consoles(&base).await.unwrap_or_default();
-        let local = self
-            .data
-            .consoles(&self.local_data().await.to_string_lossy())
-            .await?;
-        if let (Some(a), Some(l)) = (all.as_object_mut(), local.as_object()) {
-            a.extend(l.clone());
-        } else if !local.is_null() {
-            all = local;
+        let mut all = serde_json::Map::new();
+        for b in self.sources().await.iter().rev() {
+            if let Some(m) = self.data.consoles(b).await.unwrap_or_default().as_object() {
+                all.extend(m.clone());
+            }
         }
-        Ok(all)
+        Ok(if all.is_empty() {
+            serde_json::Value::Null
+        } else {
+            serde_json::Value::Object(all)
+        })
     }
 
     pub async fn game_details(&self, title: &str, slug: &str) -> Result<Option<serde_json::Value>> {
-        let base = self.settings.lock().await.data_url.clone();
-        let local = self.local_data().await.to_string_lossy().into_owned();
-        if let Some(d) = self.data.details(&local, slug, title).await? {
-            return Ok(Some(d));
+        for b in self.sources().await {
+            if let Some(d) = self.data.details(&b, slug, title).await? {
+                return Ok(Some(d));
+            }
         }
-        self.data.details(&base, slug, title).await
+        Ok(None)
+    }
+
+    /// Where game data comes from, best first: data fetched in the app, the
+    /// hosted data (if set), then the data bundled with this build.
+    async fn sources(&self) -> Vec<String> {
+        let mut v = vec![self.local_data().await.to_string_lossy().into_owned()];
+        let hosted = self.settings.lock().await.data_url.trim().to_string();
+        if !hosted.is_empty() {
+            v.push(hosted);
+        }
+        if let Some(b) = self.bundled.get() {
+            v.push(b.to_string_lossy().into_owned());
+        }
+        v.dedup();
+        v
     }
 
     /// Games already in the download folder for a console, as

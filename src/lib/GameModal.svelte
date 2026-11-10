@@ -3,6 +3,7 @@
   import { fade } from "svelte/transition";
   import { reduceMotion, EASE_OUT } from "./motion";
   import type { Addon } from "./addons";
+  import { isAndroid } from "./platform";
   import { api, gameDetails, igdbImage, parseName, type Entry, type GameDetails } from "./api";
   import { coverFor } from "./covers.svelte";
   import Cover from "./Cover.svelte";
@@ -48,6 +49,7 @@
   }: Props = $props();
 
   const DLC_PREVIEW = 8;
+  let showFullSummary = $state(false);
   let showAllDlc = $state(false);
   let dlcShown = $derived(addons ? (showAllDlc ? addons.dlc : addons.dlc.slice(0, DLC_PREVIEW)) : []);
 
@@ -191,113 +193,127 @@
     </div>
 
     <div class="body">
-      {#if loading}
-        <p class="muted">Loading details…</p>
-      {:else if details?.summary}
-        <p class="summary">{details.summary}</p>
-      {:else}
-        <p class="muted">No details found for this game.</p>
-      {/if}
-
-      {#if details?.screenshots?.length}
-        <div class="shots">
-          {#each details.screenshots as s}
-            {@const big = igdbImage(s, "1080p")}
-            <button class="shot" class:on={hero === big} title="Show as background" onclick={() => (hero = big)}>
-              <img src={igdbImage(s, "screenshot_med")} alt="" loading="lazy" />
-            </button>
+      <!-- Downloads: versions, updates and DLC. -->
+      <div class="main">
+        <section class="versions-block">
+        <h3>Versions</h3>
+        <div class="versions">
+          {#each versions as v (v.url)}
+            {@const n = parseName(v.name)}
+            {@const other = n.tags.filter((t) => t !== n.regions.join(", "))}
+            {@const path = pathFor(v)}
+            <div class="version">
+              <span class="vflags">
+                {#each n.regions as r}<Flag region={r} height={12} />{/each}
+              </span>
+              <span class="vname" title={v.name}>
+                {n.regions.join(", ") || "Unknown region"}
+                {#each other as t}<span class="tag">{t}</span>{/each}
+              </span>
+              <span class="vsize">{v.size}</span>
+              {#if queued.has(v.url)}
+                <span class="queued">queued</span>
+              {:else if path}
+                <span class="vhave">
+                  <span class="ok"><Icon name="check" size={13} /> Downloaded</span>
+                  <button class="icon" class:hidden={isAndroid} title="Show in folder" onclick={() => api.revealFile(path)}>
+                    <Icon name="reveal" size={14} />
+                  </button>
+                  <button class="text again" title="Download again" onclick={() => onDownload(v)}>Again</button>
+                </span>
+              {:else}
+                <button class="primary small" onclick={() => onDownload(v)}>
+                  <Icon name="download" size={14} /> Download
+                </button>
+              {/if}
+            </div>
           {/each}
         </div>
-      {/if}
+        </section>
 
-      <h3>Versions</h3>
-      <div class="versions">
-        {#each versions as v (v.url)}
-          {@const n = parseName(v.name)}
-          {@const other = n.tags.filter((t) => t !== n.regions.join(", "))}
-          {@const path = pathFor(v)}
-          <div class="version">
-            <span class="vflags">
-              {#each n.regions as r}<Flag region={r} height={12} />{/each}
-            </span>
-            <span class="vname" title={v.name}>
-              {n.regions.join(", ") || "Unknown region"}
-              {#each other as t}<span class="tag">{t}</span>{/each}
-            </span>
-            <span class="vsize">{v.size}</span>
-            {#if queued.has(v.url)}
-              <span class="queued">queued</span>
-            {:else if path}
-              <span class="vhave">
-                <span class="ok"><Icon name="check" size={13} /> Downloaded</span>
-                <button class="icon" title="Show in folder" onclick={() => api.revealFile(path)}>
-                  <Icon name="reveal" size={14} />
-                </button>
-                <button class="text again" title="Download again" onclick={() => onDownload(v)}>Again</button>
-              </span>
-            {:else}
-              <button class="primary small" onclick={() => onDownload(v)}>
-                <Icon name="download" size={14} /> Download
+        {#if addonsEnabled}
+          <h3>
+            Updates &amp; DLC
+            {#if addons}<span class="count">{addons.updates.length + addons.dlc.length}</span>{/if}
+          </h3>
+          {#if !addons && addonsLoading}
+            <p class="muted">Looking for updates and DLC…</p>
+          {:else if !addons || (!addons.updates.length && !addons.dlc.length)}
+            <p class="muted">None found for this game.</p>
+          {:else}
+            {#each [{ label: "Updates", items: addons.updates }, { label: "DLC", items: dlcShown }] as group (group.label)}
+              {#if group.items.length}
+                <div class="group-label">{group.label}{group.label === "DLC" ? ` · ${addons.dlc.length}` : ""}</div>
+                <div class="versions">
+                  {#each group.items as a (a.entry.url)}
+                    {@const n = parseName(a.entry.name)}
+                    {@const path = pathFor(a.entry)}
+                    <div class="version">
+                      <span class="vflags">
+                        {#each n.regions as r}<Flag region={r} height={12} />{/each}
+                      </span>
+                      <span class="vname" title={a.entry.name}>{a.label}</span>
+                      <span class="vsize">{a.entry.size}</span>
+                      {#if queued.has(a.entry.url)}
+                        <span class="queued">queued</span>
+                      {:else if path}
+                        <span class="vhave">
+                          <span class="ok"><Icon name="check" size={13} /> Downloaded</span>
+                          <button class="icon" class:hidden={isAndroid} title="Show in folder" onclick={() => api.revealFile(path)}>
+                            <Icon name="reveal" size={14} />
+                          </button>
+                        </span>
+                      {:else}
+                        <button class="secondary small" onclick={() => onDownloadAddon(a)}>
+                          <Icon name="download" size={14} /> Download
+                        </button>
+                      {/if}
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+            {/each}
+            {#if addons.dlc.length > DLC_PREVIEW}
+              <button class="text more" onclick={() => (showAllDlc = !showAllDlc)}>
+                {showAllDlc ? "Show fewer" : `Show all ${addons.dlc.length} DLC`}
               </button>
             {/if}
-          </div>
-        {/each}
-      </div>
-
-      {#if addonsEnabled}
-        <h3>
-          Updates &amp; DLC
-          {#if addons}<span class="count">{addons.updates.length + addons.dlc.length}</span>{/if}
-        </h3>
-        {#if !addons && addonsLoading}
-          <p class="muted">Looking for updates and DLC…</p>
-        {:else if !addons || (!addons.updates.length && !addons.dlc.length)}
-          <p class="muted">None found for this game.</p>
-        {:else}
-          {#each [{ label: "Updates", items: addons.updates }, { label: "DLC", items: dlcShown }] as group (group.label)}
-            {#if group.items.length}
-              <div class="group-label">{group.label}{group.label === "DLC" ? ` · ${addons.dlc.length}` : ""}</div>
-              <div class="versions">
-                {#each group.items as a (a.entry.url)}
-                  {@const n = parseName(a.entry.name)}
-                  {@const path = pathFor(a.entry)}
-                  <div class="version">
-                    <span class="vflags">
-                      {#each n.regions as r}<Flag region={r} height={12} />{/each}
-                    </span>
-                    <span class="vname" title={a.entry.name}>{a.label}</span>
-                    <span class="vsize">{a.entry.size}</span>
-                    {#if queued.has(a.entry.url)}
-                      <span class="queued">queued</span>
-                    {:else if path}
-                      <span class="vhave">
-                        <span class="ok"><Icon name="check" size={13} /> Downloaded</span>
-                        <button class="icon" title="Show in folder" onclick={() => api.revealFile(path)}>
-                          <Icon name="reveal" size={14} />
-                        </button>
-                      </span>
-                    {:else}
-                      <button class="secondary small" onclick={() => onDownloadAddon(a)}>
-                        <Icon name="download" size={14} /> Download
-                      </button>
-                    {/if}
-                  </div>
-                {/each}
-              </div>
-            {/if}
-          {/each}
-          {#if addons.dlc.length > DLC_PREVIEW}
-            <button class="text more" onclick={() => (showAllDlc = !showAllDlc)}>
-              {showAllDlc ? "Show fewer" : `Show all ${addons.dlc.length} DLC`}
-            </button>
+            <p class="credit">Saved to the console's Updates and DLC folders.</p>
           {/if}
-          <p class="credit">Saved to the console's Updates and DLC folders.</p>
         {/if}
-      {/if}
+      </div>
+      <!-- About the game: description, screenshots, credit. -->
+      <div class="side">
+        <div class="about">
+          {#if loading}
+            <p class="muted">Loading details…</p>
+          {:else if details?.summary}
+            <p class="summary" class:clamp={!showFullSummary}>{details.summary}</p>
+            {#if details.summary.length > 220}
+              <button class="text more-summary" onclick={() => (showFullSummary = !showFullSummary)}>
+                {showFullSummary ? "Less" : "More"}
+              </button>
+            {/if}
+          {:else}
+            <p class="muted">No details found for this game.</p>
+          {/if}
+        </div>
 
-      {#if details}
-        <p class="credit">Game details from IGDB.com</p>
-      {/if}
+        {#if details?.screenshots?.length}
+          <div class="shots">
+            {#each details.screenshots as s}
+              {@const big = igdbImage(s, "1080p")}
+              <button class="shot" class:on={hero === big} title="Show as background" onclick={() => (hero = big)}>
+                <img src={igdbImage(s, "screenshot_med")} alt="" loading="lazy" />
+              </button>
+            {/each}
+          </div>
+        {/if}
+
+        {#if details}
+          <p class="credit">Game details from IGDB.com</p>
+        {/if}
+      </div>
     </div>
   </div>
 </div>
@@ -432,6 +448,8 @@
   .body {
     min-height: 0; /* scroll inside the panel rather than growing past it */
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
     padding: 18px 24px 22px;
     user-select: text;
   }
@@ -566,5 +584,149 @@
     margin: 14px 0 0;
     font-size: 11px;
     color: var(--muted);
+  }
+  :global(html.no-color-mix) .hero {
+    background: var(--field);
+  }
+  .hidden {
+    display: none;
+  }
+  /* Android: the details take over the whole screen, like a native page. */
+  :global(html.android) .backdrop {
+    place-items: stretch;
+    backdrop-filter: none;
+  }
+  :global(html.android) .panel {
+    width: 100vw;
+    height: 100vh;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+  }
+  :global(html.android) .hero {
+    height: 160px;
+    border-radius: 0;
+  }
+  :global(html.android) .head {
+    margin-top: -84px;
+    padding: 0 16px;
+    gap: 14px;
+  }
+  :global(html.android) .cover {
+    width: 104px;
+  }
+  :global(html.android) h2 {
+    font-size: 22px;
+  }
+  :global(html.android) .body {
+    padding: 14px 16px 24px;
+  }
+  :global(html.android) .close {
+    width: 40px !important;
+    height: 40px !important;
+  }
+  :global(html.android) .version {
+    padding: 10px 12px;
+  }
+  /* The summary's "More" link only matters where it's clamped (below). */
+  .more-summary {
+    display: none;
+    align-self: flex-start;
+    margin-top: 2px;
+    padding: 2px 0;
+    font-size: 13px;
+    color: var(--accent);
+  }
+  .versions-block h3:first-child {
+    margin-top: 0;
+  }
+  /* Desktop: the description and screenshots, then the downloads. */
+  .side {
+    order: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .main {
+    order: 1;
+  }
+  .side :global(.credit) {
+    margin-top: 14px;
+  }
+  /* Short screens (handhelds, phones in landscape, small windows): downloads
+     on the left, description and screenshots on the right, both visible
+     without scrolling. */
+  @media (max-height: 640px) and (min-width: 700px) {
+    /* Each column scrolls on its own, so reading a long description
+       doesn't push a short list of downloads out of sight. */
+    .body,
+    :global(html.android) .body {
+      flex: 1;
+      flex-direction: row;
+      align-items: stretch;
+      gap: 22px;
+      overflow: hidden;
+      padding-top: 12px;
+      padding-bottom: 0;
+    }
+    .main,
+    .side {
+      min-width: 0;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding-bottom: 22px;
+    }
+    .main {
+      order: 0;
+      flex: 1.15;
+    }
+    .side {
+      order: 1;
+      flex: 1;
+    }
+    .shots .shot {
+      width: 120px;
+    }
+  }
+  /* Narrow screens (phones in portrait): one column, downloads first, with
+     the description clamped to a few lines. */
+  @media (max-width: 699px) {
+    .main {
+      order: 0;
+      margin-bottom: 14px;
+    }
+    .side {
+      order: 1;
+    }
+    .summary.clamp {
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .more-summary {
+      display: block;
+    }
+  }
+  /* Short screens also get a shorter banner and cover (the html.android
+     selectors outrank the full-screen Android sizes above). */
+  @media (max-height: 640px) {
+    .hero,
+    :global(html.android) .hero {
+      height: 120px;
+    }
+    .head,
+    :global(html.android) .head {
+      margin-top: -66px;
+    }
+    .cover,
+    :global(html.android) .cover {
+      width: 84px;
+    }
+    h2,
+    :global(html.android) h2 {
+      font-size: 20px;
+    }
   }
 </style>

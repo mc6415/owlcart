@@ -89,6 +89,11 @@ export const api = {
     invoke<void>("start_fetch", { consoles }),
   cancelFetch: () => invoke<void>("cancel_fetch"),
   fetchStatus: () => invoke<FetchStatus>("fetch_status"),
+  /** Android only: the system folder picker. Returns a path, or null if cancelled. */
+  pickFolder: () => invoke<string | null>("pick_folder"),
+  /** Dual-screen devices (Android): whether there's a second screen, and what to show on it. */
+  secondScreenAvailable: () => invoke<boolean>("second_screen_available"),
+  secondScreenUpdate: (state: unknown) => invoke<void>("second_screen_update", { state }),
   /** Games already in the download folder: file name without extension -> path. */
   downloaded: (folder?: string, archiveFolder?: string) =>
     invoke<Record<string, string>>("downloaded", { folder, archiveFolder }),

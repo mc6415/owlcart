@@ -8,7 +8,7 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { openUrl } from "@tauri-apps/plugin-opener";
   import { resetCovers } from "$lib/covers.svelte";
-  import { api, fileStem, formatBytes, isExtra, listingSlug, parseName, type FetchStatus, type Entry, type Job, type Listing, type Settings } from "$lib/api";
+  import { api, fileStem, formatBytes, gameDetails, igdbImage, isExtra, listingSlug, parseName, type FetchStatus, type GameDetails, type Entry, type Job, type Listing, type Settings } from "$lib/api";
   import GameList from "$lib/GameList.svelte";
   import GameGrid from "$lib/GameGrid.svelte";
   import DownloadsButton from "$lib/DownloadsButton.svelte";
@@ -19,6 +19,7 @@
   import Skeleton from "$lib/Skeleton.svelte";
   import HeroCollage from "$lib/HeroCollage.svelte";
   import { flyToDownloads } from "$lib/motion";
+  import { isAndroid } from "$lib/platform";
   import { loadAddons, type Addon } from "$lib/addons";
   import { coverFor } from "$lib/covers.svelte";
   import { fade } from "svelte/transition";
@@ -135,6 +136,66 @@
   let gridCols = $state(1);
   let filterEl = $state<HTMLInputElement>();
   let picker = $state<{ show: () => void }>();
+
+  // Android: scrolling down a list slides everything above the Name/Size header
+  // (top bar, console banner, filters) out of the way; it returns at the top.
+  let appEl = $state<HTMLElement>();
+  let colheadEl = $state<HTMLElement>();
+  let chromeHidden = $state(false);
+  let chromeHeight = $state(0);
+  let lastScroll = { el: null as EventTarget | null, top: 0 };
+  let chromeLockUntil = 0;
+  let chromeTall = $state(false);
+  function onListScroll(e: Event) {
+    const el = e.target as HTMLElement;
+    if (!isAndroid || !el.classList?.contains("viewport")) return;
+    const top = el.scrollTop;
+    const prev = lastScroll.el === el ? lastScroll.top : top;
+    lastScroll = { el, top };
+    // Ignore the scroll that the layout change itself causes.
+    if (performance.now() < chromeLockUntil) return;
+    // Hides on the way down, and only comes back at the very top: bringing it
+    // back on any upward scroll felt jumpy, especially when moving up through
+    // the list with a controller.
+    // Only hide when there's still list left to scroll once it's gone, so a
+    // short list that barely overflows just scrolls with the header in place.
+    // (The list's end has extra space only while the header shows; see below.)
+    const pad = chromeTall && !chromeHidden ? chromeHeight : 0;
+    const room = el.scrollHeight - pad - el.clientHeight;
+    let hide = chromeHidden;
+    if (top < 24) hide = false;
+    else if (top - prev > 6 && top + 24 < room) hide = true;
+    if (hide === chromeHidden) return;
+    if (hide && appEl && colheadEl) {
+      chromeHeight = colheadEl.getBoundingClientRect().top - appEl.getBoundingClientRect().top;
+    }
+    chromeHidden = hide;
+    chromeLockUntil = performance.now() + 300;
+    // The page slides with a transform, so nothing is laid out again while
+    // it moves. It stays taller than the screen by the hidden amount, with the
+    // extra part below the screen edge, so hiding and showing never resize the
+    // list. While the header shows, the list gets that much space at its end
+    // so its last games can still scroll into view.
+    chromeTall = true;
+  }
+  // A new console starts with everything shown.
+  $effect(() => {
+    void listing;
+    chromeHidden = false;
+  });
+  // Measure the header as soon as a list is shown (and again if a banner
+  // appears), so even the first slide doesn't resize anything.
+  $effect(() => {
+    void [listing, error, engineError];
+    if (!isAndroid || !colheadEl || !appEl) return;
+    const app = appEl, head = colheadEl;
+    const id = requestAnimationFrame(() => {
+      if (chromeHidden) return;
+      chromeHeight = head.getBoundingClientRect().top - app.getBoundingClientRect().top;
+      chromeTall = true;
+    });
+    return () => cancelAnimationFrame(id);
+  });
   let downloadsBtn = $state<{ toggle: () => void }>();
 
   function typingIn(t: EventTarget | null) {
@@ -255,6 +316,66 @@
         e.preventDefault();
         if (selected.size) download(selectedEntries);
         else if (item?.kind === "file") download([item]);
+        break;
+    }
+  }
+
+  // ---- controller buttons (Android; sent by MainActivity.kt) ----
+  const PAD_BUTTONS: [string, string][] = [
+    ["D-pad", "Move through games"],
+    ["A", "Open game details"],
+    ["B", "Back"],
+    ["X", "Download the highlighted game (or the selected ones)"],
+    ["Y", "Search"],
+    ["L1 R1", "Page up / down"],
+    ["L2 R2", "Jump to the top / bottom"],
+    ["Start", "Downloads"],
+    ["Select", "This list"],
+    ["L3", "Switch list / grid"],
+    ["R3", "Games only (hide demos, betas, prototypes)"],
+  ];
+  function onPad(button: string) {
+    if (button === "select") {
+      showKeys = !showKeys;
+      return;
+    }
+    if (button === "start") {
+      downloadsBtn?.toggle();
+      return;
+    }
+    // Other buttons only act on the game list, not over windows and menus.
+    const overlay =
+      !!detailTitle || showSettings || showKeys || !!document.querySelector(".picker .menu, .wrap .pop");
+    if (overlay || typingIn(document.activeElement)) return;
+    const item = cursor >= 0 ? filtered[cursor] : undefined;
+    const page = view === "grid" ? gridCols * 2 : 8;
+    switch (button) {
+      case "x":
+        if (selected.size) download(selectedEntries);
+        else if (item?.kind === "file") download([item]);
+        break;
+      case "y":
+        chromeHidden = false;
+        filterEl?.focus();
+        filterEl?.select();
+        break;
+      case "l1":
+        moveCursor(-page);
+        break;
+      case "r1":
+        moveCursor(page);
+        break;
+      case "l2":
+        if (filtered.length) cursor = 0;
+        break;
+      case "r2":
+        cursor = filtered.length - 1;
+        break;
+      case "l3":
+        setView(view === "grid" ? "list" : "grid");
+        break;
+      case "r3":
+        setGamesOnly(!gamesOnly);
         break;
     }
   }
@@ -415,6 +536,106 @@
     };
   });
 
+  // ---- second screen (dual-screen devices like the AYN Thor) ----
+  // Shows the game in the details window, or else the one highlighted with
+  // the controller, with its versions and download buttons, plus downloads.
+  let dualScreen = $state(false);
+  let screenTitle = $state<string | null>(null);
+  let screenInfo = $state<{ title: string; cover: string | null; details: GameDetails | null } | null>(null);
+  $effect(() => {
+    void listing;
+    screenTitle = null;
+  });
+  $effect(() => {
+    const item = cursor >= 0 ? filtered[cursor] : undefined;
+    const t = detailTitle ?? (item?.kind === "file" ? parseName(item.name).title : null);
+    if (t) screenTitle = t;
+  });
+  $effect(() => {
+    const title = screenTitle;
+    const l = listing;
+    if (!dualScreen || !title || !l) return;
+    const slug = listingSlug(l.url);
+    let stale = false;
+    Promise.all([coverFor(title, slug).catch(() => null), gameDetails(title, slug).catch(() => null)]).then(
+      ([cover, details]) => {
+        if (!stale) screenInfo = { title, cover, details };
+      },
+    );
+    return () => (stale = true);
+  });
+  function jobProgress(j: Job | undefined) {
+    return j && j.total > 0 && j.state !== "queued" && j.state !== "resolving" ? j.completed / j.total : null;
+  }
+  let screenTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    if (!dualScreen) return;
+    const info = screenInfo && screenInfo.title === screenTitle ? screenInfo : null;
+    const d = info?.details;
+    const game = info &&
+      listing && {
+        title: info.title,
+        console: listing.crumbs.at(-1)?.name ?? "",
+        cover: info.cover ?? (d?.cover ? igdbImage(d.cover, "cover_big") : null),
+        hero: d?.artworks?.[0]
+          ? igdbImage(d.artworks[0], "720p")
+          : d?.screenshots?.[0]
+            ? igdbImage(d.screenshots[0], "720p")
+            : null,
+        meta: [d?.released?.slice(0, 4), d?.genres?.slice(0, 2).join(", "), d?.developers?.[0]].filter(Boolean),
+        summary: d?.summary ?? "",
+        versions: listing.entries
+          .filter((e) => e.kind === "file" && parseName(e.name).title === info.title)
+          .map((e) => {
+            const p = parseName(e.name);
+            const job = jobs.find((j) => j.romUrl === e.url && !["failed", "cancelled"].includes(j.state));
+            const status = have[fileStem(e.name)] || job?.state === "done" ? "have" : queued.has(e.url) ? "queued" : "none";
+            return {
+              url: e.url,
+              label: p.regions.join(", ") || "Version",
+              sub: [...p.tags.filter((t) => t !== p.regions.join(", ")), e.size].join(" · "),
+              status,
+              progress: status === "queued" ? jobProgress(job) : null,
+            };
+          }),
+      };
+    const active = jobs
+      .filter((j) => !["done", "failed", "cancelled"].includes(j.state))
+      .map((j) => {
+        const p = jobProgress(j);
+        return {
+          name: parseName(j.name).title,
+          progress: p,
+          status:
+            j.state === "downloading" && p != null
+              ? `${Math.round(p * 100)}% · ${formatBytes(j.speed)}/s`
+              : j.state,
+        };
+      });
+    const theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    const state = { game: game || null, jobs: active, theme };
+    // Batch quick changes (moving through the grid, progress ticks).
+    clearTimeout(screenTimer);
+    screenTimer = setTimeout(() => api.secondScreenUpdate(state).catch(() => {}), 80);
+  });
+  // A tap on a game highlights it. With a second screen that's where its
+  // details show, so the details window only opens on single-screen devices
+  // (or with Enter / the controller's A button).
+  function tapGame(e: Entry) {
+    cursor = filtered.indexOf(e);
+    if (!dualScreen) openDetails(e);
+  }
+  // Taps on the second screen.
+  function onSecondScreen(msg: { action?: string; url?: string; title?: string }) {
+    if (msg.action === "download" && msg.url) {
+      const entry = listing?.entries.find((e) => e.url === msg.url);
+      if (entry) download([entry]);
+    } else if (msg.action === "details" && msg.title) {
+      detailOrigin = null;
+      detailTitle = msg.title;
+    }
+  }
+
   // ---- ambient light and spotlight ----
 
   /** Cover whose colours wash softly over the window (the hovered game). */
@@ -544,14 +765,28 @@
 
   async function browseFetchDir() {
     if (!settings) return;
-    const dir = await openDialog({ directory: true, defaultPath: settings.fetchDir || undefined });
-    if (typeof dir === "string") settings.fetchDir = dir;
+    try {
+      // Android has no folder dialog in the dialog plugin; use our own picker.
+      const dir = isAndroid
+        ? await api.pickFolder()
+        : await openDialog({ directory: true, defaultPath: settings.fetchDir || undefined });
+      if (typeof dir === "string") settings.fetchDir = dir;
+    } catch (e) {
+      error = String(e);
+    }
   }
 
   async function browseDir() {
     if (!settings) return;
-    const dir = await openDialog({ directory: true, defaultPath: settings.downloadDir });
-    if (typeof dir === "string") settings.downloadDir = dir;
+    try {
+      // Android has no folder dialog in the dialog plugin; use our own picker.
+      const dir = isAndroid
+        ? await api.pickFolder()
+        : await openDialog({ directory: true, defaultPath: settings.downloadDir || undefined });
+      if (typeof dir === "string") settings.downloadDir = dir;
+    } catch (e) {
+      error = String(e);
+    }
   }
 
   async function saveSettings() {
@@ -580,8 +815,43 @@
     showSettings = true;
   }
 
+  // Android's back gesture should close the game details or Settings rather
+  // than leave the app: an extra history entry is added while one is open.
+  let backEntry = false;
+  $effect(() => {
+    const open = !!detailTitle || showSettings;
+    if (!isAndroid) return;
+    if (open && !backEntry) {
+      history.pushState({ overlay: true }, "");
+      backEntry = true;
+    } else if (!open && backEntry) {
+      backEntry = false;
+      history.back(); // closed from the UI: drop the extra entry
+    }
+  });
+  function onBack() {
+    if (!backEntry) return;
+    backEntry = false;
+    detailTitle = null;
+    showSettings = false;
+  }
+
   onMount(() => {
+    window.addEventListener("popstate", onBack);
+    if (isAndroid) {
+      const w = window as unknown as { __owlSecondScreen: typeof onSecondScreen; __owlPad: typeof onPad };
+      w.__owlSecondScreen = onSecondScreen;
+      w.__owlPad = onPad;
+      api.secondScreenAvailable().then((v) => (dualScreen = v)).catch(() => {});
+    }
     const unlisten = listen<Job[]>("jobs", (e) => (jobs = e.payload));
+    // The game data bundled with the app has been unpacked: show its covers,
+    // details and console counts straight away.
+    const unData = listen("data-ready", () => {
+      resetCovers();
+      refreshArtTitles();
+      loadConsoles().then((c) => (consoles = c));
+    });
     let wasRunning = false;
     const unFetch = listen<FetchStatus>("fetch", (e) => {
       fetchState = e.payload;
@@ -599,18 +869,30 @@
     api.engineStatus().then((s) => (engineError = s.ok ? null : s.error));
     loadConsoles().then((c) => (consoles = c));
     load(lastListing());
-    const syncMax = () => win.isMaximized().then((m) => (maximized = m));
-    syncMax();
-    const unResize = win.onResized(syncMax);
+    // Window size/state only exists on desktop; on Android the app is always full screen.
+    if (isAndroid) document.documentElement.classList.add("android");
+    if (!CSS.supports("color", "color-mix(in srgb, red, blue)")) document.documentElement.classList.add("no-color-mix");
+    const syncMax = () => win.isMaximized().then((m) => (maximized = m)).catch(() => {});
+    if (!isAndroid) syncMax();
+    const unResize = isAndroid ? Promise.resolve(() => {}) : win.onResized(syncMax);
     return () => {
       unlisten.then((f) => f());
       unFetch.then((f) => f());
+      unData.then((f) => f());
       unResize.then((f) => f());
     };
   });
 </script>
 
-<div class="app" class:maximized>
+<div
+  class="app"
+  class:maximized
+  class:android={isAndroid}
+  bind:this={appEl}
+  style:transform={chromeHidden && chromeHeight ? `translateY(-${chromeHeight}px)` : null}
+  style:height={chromeTall && chromeHeight ? `calc(100vh + ${chromeHeight}px)` : null}
+  style:--chrome-pad={chromeTall && chromeHeight && !chromeHidden ? `${chromeHeight}px` : null}
+>
   <!-- The hovered game's colours, as a soft wash behind everything. -->
   <div class="ambient" aria-hidden="true">
     {#key ambient}
@@ -643,7 +925,7 @@
     <button type="button" class="icon" onclick={openSettings} title="Settings ({mod} ,)">
       <Icon name="gear" size={16} />
     </button>
-    <div class="winctl">
+    <div class="winctl" class:hidden={isAndroid}>
       <button class="icon" title="Minimise" onclick={() => win.minimize()}><Icon name="min" size={14} /></button>
       <button class="icon" title={maximized ? "Restore" : "Maximise"} onclick={() => win.toggleMaximize()}>
         <Icon name={maximized ? "restore" : "max"} size={13} />
@@ -665,7 +947,7 @@
   {/if}
 
   <div class="body">
-    <main onpointerover={onPointerOver}>
+    <main onpointerover={onPointerOver} onscrollcapture={onListScroll}>
       {#if listing}
         <section class="hero" style="--tint: {tint}">
           <HeroCollage slug={listingSlug(listing.url)} titles={artTitles ? [...artTitles] : []} />
@@ -737,9 +1019,9 @@
           <label class="filter">
             <Icon name="search" size={14} />
             <input bind:this={filterEl} bind:value={query} spellcheck="false" placeholder="Filter" />
-            {#if !query}<kbd class="in-field">/</kbd>{/if}
+            {#if !query && !isAndroid}<kbd class="in-field">/</kbd>{/if}
           </label>
-          <button class="icon keys" title="Keyboard shortcuts (?)" onclick={() => (showKeys = true)}>
+          <button class="icon keys" class:hidden={isAndroid} title="Keyboard shortcuts (?)" onclick={() => (showKeys = true)}>
             <kbd>?</kbd>
           </button>
         </div>
@@ -764,7 +1046,7 @@
           </div>
         {/if}
 
-        <div class="colhead">
+        <div class="colhead" bind:this={colheadEl}>
           <span class="lead">
             <input
               type="checkbox"
@@ -806,10 +1088,7 @@
             {queued}
             onOpenFolder={load}
             onDownload={(e) => download([e])}
-            onOpen={(e) => {
-              cursor = filtered.indexOf(e);
-              openDetails(e);
-            }}
+            onOpen={tapGame}
           />
         {:else}
           <GameList
@@ -823,10 +1102,7 @@
             {queued}
             onOpenFolder={load}
             onDownload={(e) => download([e])}
-            onOpen={(e) => {
-              cursor = filtered.indexOf(e);
-              openDetails(e);
-            }}
+            onOpen={tapGame}
           />
         {/if}
 
@@ -837,7 +1113,7 @@
             <div class="grow"></div>
             <button class="text" onclick={() => selected.clear()}>Clear</button>
             <button class="primary" onclick={() => download(selectedEntries)} disabled={!!engineError}>
-              <Icon name="download" size={15} /> Download <kbd class="on-accent">{mod}↵</kbd>
+              <Icon name="download" size={15} /> Download {#if !isAndroid}<kbd class="on-accent">{mod}↵</kbd>{/if}
             </button>
           </div>
         {/if}
@@ -857,10 +1133,10 @@
 
 {#if showKeys}
   <div class="modal-bg" role="presentation" onclick={() => (showKeys = false)}>
-    <div class="modal keys-modal" role="dialog" tabindex="-1" aria-label="Keyboard shortcuts" onclick={(e) => e.stopPropagation()} onkeydown={() => {}}>
-      <h2>Keyboard shortcuts</h2>
+    <div class="modal keys-modal" role="dialog" tabindex="-1" aria-label={isAndroid ? "Controller buttons" : "Keyboard shortcuts"} onclick={(e) => e.stopPropagation()} onkeydown={() => {}}>
+      <h2>{isAndroid ? "Controller buttons" : "Keyboard shortcuts"}</h2>
       <dl>
-        {#each SHORTCUTS as [k, what]}
+        {#each isAndroid ? PAD_BUTTONS : SHORTCUTS as [k, what]}
           <dt>{#each k.split("  or  ") as part, i}{#if i}<span class="or">or</span>{/if}{#each part.split(" ") as key}<kbd>{key}</kbd>{/each}{/each}</dt>
           <dd>{what}</dd>
         {/each}
@@ -1197,6 +1473,25 @@
     opacity: 0.05;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
     mix-blend-mode: overlay;
+  }
+  /* Android: always full screen, solid background, no window chrome. */
+  :global(html.android),
+  :global(html.android body) {
+    background: var(--bg);
+  }
+  .app.android {
+    border: 0;
+    border-radius: 0;
+  }
+  .app.android {
+    transition: transform 0.24s cubic-bezier(0.2, 0.7, 0.2, 1);
+    will-change: transform;
+  }
+  .app.android :global(.viewport) {
+    padding-bottom: var(--chrome-pad, 0px);
+  }
+  .hidden {
+    display: none !important;
   }
   .app.maximized {
     border: 0;
@@ -1782,5 +2077,101 @@
   }
   .row.end {
     justify-content: flex-end;
+  }
+  /* Short screens (handhelds, small windows): a slim header so the games
+     start near the top. */
+  @media (max-height: 640px) {
+    .hero {
+      min-height: 0;
+      padding: 10px 16px;
+    }
+    .hero h1 {
+      font-size: 24px;
+    }
+    .hero .stats {
+      margin-top: 2px;
+    }
+    .spot {
+      display: none;
+    }
+    .titlebar {
+      height: 44px;
+    }
+  }
+  /* Older WebViews (e.g. Android System WebView before v111) lack color-mix(),
+     and declarations using it with var() silently become blank. Give the
+     parts that would vanish a plain look instead. */
+  :global(html.no-color-mix) .app {
+    background: var(--bg);
+  }
+  :global(html.no-color-mix) h1 {
+    background: none;
+    color: var(--text);
+  }
+  :global(html.no-color-mix) .eyebrow,
+  :global(html.no-color-mix) .spot-eyebrow {
+    color: var(--muted);
+  }
+  :global(html.no-color-mix) .hero::after {
+    background: linear-gradient(90deg, var(--bg) 18%, transparent 60%);
+  }
+  :global(html.no-color-mix) .banner {
+    background: var(--field);
+  }
+  :global(html.no-color-mix) .spot-main {
+    background: var(--panel);
+    border-color: var(--line);
+  }
+  /* ---- Android and small screens ---- */
+  :global(html.android) {
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+  /* Settings fill the screen on Android. */
+  :global(html.android) .modal-bg {
+    place-items: stretch;
+  }
+  :global(html.android) .modal {
+    width: 100vw;
+    max-height: none;
+    height: 100vh;
+    box-sizing: border-box;
+    border: 0;
+    border-radius: 0;
+    padding: 18px 16px 28px;
+  }
+  /* Bigger touch targets for the toolbar and selection bar. */
+  :global(html.android) .seg button {
+    width: 38px;
+    height: 32px;
+  }
+  :global(html.android) .toggle {
+    height: 34px;
+  }
+  :global(html.android) .selbar {
+    padding: 10px 14px;
+  }
+  /* Narrow screens (phones in portrait): the console picker already says
+     where you are, so drop the breadcrumbs and let the filter stretch. */
+  @media (max-width: 700px) {
+    .crumbs {
+      display: none;
+    }
+    .subbar {
+      gap: 8px;
+    }
+    .filter {
+      flex: 1;
+    }
+    .filter input {
+      width: 100%;
+      min-width: 0;
+    }
+    .brand span {
+      display: none;
+    }
+    .brand {
+      width: auto;
+    }
   }
 </style>
