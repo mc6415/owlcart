@@ -128,6 +128,22 @@ impl ConsoleData {
             &serde_json::to_string(&self.covers)?,
         )
         .await?;
+        // Every rated game's [rating, review count] in one small file, for
+        // sorting by rating.
+        let ratings: BTreeMap<&String, Value> = self
+            .details
+            .iter()
+            .filter_map(|(t, d)| {
+                let r = d.get("rating")?.as_u64()?;
+                let n = d.get("ratingCount").and_then(Value::as_u64).unwrap_or(0);
+                Some((t, json!([r, n])))
+            })
+            .collect();
+        write_atomic(
+            &self.dir.join("ratings.json"),
+            &serde_json::to_string(&ratings)?,
+        )
+        .await?;
         let mut buckets: BTreeMap<String, Map<String, Value>> = BTreeMap::new();
         for (t, d) in &self.details {
             buckets
@@ -277,7 +293,7 @@ impl Igdb {
     async fn details(&self, platform: u64, title: &str) -> Result<Value> {
         const FIELDS: &str = "name,alternative_names.name,summary,first_release_date,genres.name,\
             involved_companies.company.name,involved_companies.developer,involved_companies.publisher,\
-            total_rating,cover.image_id,artworks.image_id,screenshots.image_id";
+            total_rating,total_rating_count,cover.image_id,artworks.image_id,screenshots.image_id";
         let query = search_query(title);
         let safe = query.replace(['"', '\\'], " ");
         let games = self
@@ -354,12 +370,13 @@ impl Igdb {
         put("genres", json!(names("genres")));
         put("developers", json!(by_role("developer")));
         put("publishers", json!(by_role("publisher")));
-        put(
-            "rating",
-            g["total_rating"]
-                .as_f64()
-                .map_or(Value::Null, |r| json!(r.round() as u64)),
-        );
+        if let Some(r) = g["total_rating"].as_f64().filter(|r| *r > 0.0) {
+            put("rating", json!(r.round() as u64));
+            put(
+                "ratingCount",
+                json!(g["total_rating_count"].as_u64().unwrap_or(0)),
+            );
+        }
         put("cover", g["cover"]["image_id"].clone());
         put("artworks", json!(ids("artworks", 4)));
         put("screenshots", json!(ids("screenshots", 8)));

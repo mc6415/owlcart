@@ -4,16 +4,20 @@
 //
 //   npm run data -- [console...] [--retry-missing] [--limit N] [--verbose]
 //                   [--no-covers] [--no-details] [--out data]
+//   npm run data -- [console...] --refresh-ratings
 //
 // With no console named, updates every console that already has data. Name
 // consoles (their ES-DE folder, or part of the slug or name, e.g.
 // `npm run data -- gba saturn`) to
 // add them, or `all` for everything in consoles.json.
+// --refresh-ratings only re-reads the IGDB rating and review count of games
+// already matched (500 per request), without looking anything else up.
 // Keys: .steamgriddb-key and .igdb-credentials in the project root (git-ignored).
 //
 // Output layout (host the folder as-is):
 //   data/index.json                      consoles, update times, counts
 //   data/<slug>/covers.json              title -> cover ref ("s:..." SteamGridDB, "i:..." IGDB) or null
+//   data/<slug>/ratings.json             title -> [IGDB rating 0-100, review count], rated games only, for sorting
 //   data/<slug>/details/<00-ff>.json     title -> IGDB details or null, bucketed by titleBucket()
 
 import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
@@ -22,7 +26,7 @@ import { fileURLToPath } from "node:url";
 import { listingSlug, titleBucket } from "../src/lib/names.ts";
 import { arg, sleep, listingTitles } from "./common.ts";
 import { sgdbKey, sgdbCover } from "./sgdb.ts";
-import { igdbLogin, igdbPlatform, igdbDetails, type GameDetails, type Igdb } from "./igdb.ts";
+import { igdbLogin, igdbPlatform, igdbDetails, igdbRatings, type GameDetails, type Igdb } from "./igdb.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const flag = (name: string) => process.argv.includes(name);
@@ -121,6 +125,7 @@ async function buildConsole(
       }
     }
     await writeFile(join(dir, "covers.json"), JSON.stringify(sortKeys(covers)) + "\n");
+    await writeFile(join(dir, "ratings.json"), JSON.stringify(ratingsOf(details)) + "\n");
     const buckets: Record<string, Record<string, GameDetails | null>> = {};
     for (const [t, d] of Object.entries(details)) (buckets[titleBucket(t)] ??= {})[t] = d;
     for (const [b, entries] of Object.entries(buckets)) {
@@ -217,6 +222,11 @@ async function main() {
   };
   await mkdir(outDir, { recursive: true });
 
+  if (flag("--refresh-ratings")) {
+    if (!keys.igdb) throw new Error("--refresh-ratings needs IGDB (drop --no-details)");
+    for (const c of selected) await refreshRatings(c, outDir, index, keys.igdb);
+    return;
+  }
   for (const c of selected) await buildConsole(c, outDir, index, keys);
 }
 
@@ -224,3 +234,51 @@ main().catch((e) => {
   console.error(String(e));
   process.exit(1);
 });
+
+/** Title -> [rating, review count] for every rated game: the whole console's ratings in one small file, for sorting. */
+export function ratingsOf(details: Record<string, GameDetails | null>): Record<string, [number, number]> {
+  const out: Record<string, [number, number]> = {};
+  for (const t of Object.keys(details).sort()) {
+    const d = details[t];
+    if (d?.rating != null) out[t] = [d.rating, d.ratingCount ?? 0];
+  }
+  return out;
+}
+
+/** Updates the ratings and review counts of a console's matched games. */
+async function refreshRatings(cfg: ConsoleConfig, outDir: string, index: Index, igdb: Igdb) {
+  const slug = listingSlug(cfg.listing);
+  const detailsDir = join(outDir, slug, "details");
+  const files = (await readdir(detailsDir).catch(() => [])).filter((f) => f.endsWith(".json"));
+  if (!files.length) return console.log(`${cfg.name}: no details yet, skipped`);
+
+  const buckets: Record<string, Record<string, GameDetails | null>> = {};
+  for (const f of files) buckets[f] = await readJson(join(detailsDir, f), {});
+  const all = Object.values(buckets).flatMap((b) => Object.values(b)).filter((d): d is GameDetails => !!d);
+  const latest = await igdbRatings(igdb, [...new Set(all.map((d) => d.igdb))]);
+
+  let changed = 0;
+  for (const d of all) {
+    const r = latest.get(d.igdb);
+    if (!r) continue; // not returned (removed from IGDB?): keep what we had
+    if (d.rating !== r.rating || d.ratingCount !== r.ratingCount) changed++;
+    if (r.rating == null) {
+      delete d.rating;
+      delete d.ratingCount;
+    } else {
+      d.rating = r.rating;
+      d.ratingCount = r.ratingCount;
+    }
+  }
+  for (const [f, entries] of Object.entries(buckets)) {
+    await writeFile(join(detailsDir, f), JSON.stringify(sortKeys(entries)) + "\n");
+  }
+  const details = Object.assign({}, ...Object.values(buckets)) as Record<string, GameDetails | null>;
+  await writeFile(join(outDir, slug, "ratings.json"), JSON.stringify(ratingsOf(details)) + "\n");
+  // Bumping this tells the app to re-download this console's files.
+  if (changed && index.consoles[slug]) {
+    index.consoles[slug].updated = new Date().toISOString();
+    await writeFile(join(outDir, "index.json"), JSON.stringify({ ...index, consoles: sortKeys(index.consoles) }, null, 1) + "\n");
+  }
+  console.log(`${cfg.name}: ${all.length} games, ${changed} ratings updated`);
+}

@@ -16,6 +16,8 @@ export interface GameDetails {
   publishers?: string[];
   /** 0-100 */
   rating?: number;
+  /** How many critic and user reviews `rating` is based on. */
+  ratingCount?: number;
   /** IGDB image ids; the app builds URLs from these. */
   cover?: string;
   artworks?: string[];
@@ -36,6 +38,7 @@ interface IgdbGame {
   genres?: { name: string }[];
   involved_companies?: { company: { name: string }; developer: boolean; publisher: boolean }[];
   total_rating?: number;
+  total_rating_count?: number;
   cover?: { image_id: string };
   artworks?: { image_id: string }[];
   screenshots?: { image_id: string }[];
@@ -106,6 +109,7 @@ const FIELDS = [
   "involved_companies.developer",
   "involved_companies.publisher",
   "total_rating",
+  "total_rating_count",
   "cover.image_id",
   "artworks.image_id",
   "screenshots.image_id",
@@ -144,9 +148,33 @@ export async function igdbDetails(
   const pubs = companies.filter((c) => c.publisher).map((c) => c.company.name);
   if (devs.length) d.developers = devs;
   if (pubs.length) d.publishers = pubs;
-  if (best.total_rating) d.rating = Math.round(best.total_rating);
+  if (best.total_rating) {
+    d.rating = Math.round(best.total_rating);
+    d.ratingCount = best.total_rating_count ?? 0;
+  }
   if (best.cover) d.cover = best.cover.image_id;
   if (best.artworks?.length) d.artworks = best.artworks.slice(0, 4).map((a) => a.image_id);
   if (best.screenshots?.length) d.screenshots = best.screenshots.slice(0, 8).map((s) => s.image_id);
   return d;
+}
+
+/** Current rating and review count of each game, by IGDB id (500 per request). */
+export async function igdbRatings(
+  auth: Igdb,
+  ids: number[],
+): Promise<Map<number, { rating?: number; ratingCount?: number }>> {
+  const out = new Map<number, { rating?: number; ratingCount?: number }>();
+  for (let i = 0; i < ids.length; i += 500) {
+    const batch = ids.slice(i, i + 500);
+    const games = await igdb<{ id: number; total_rating?: number; total_rating_count?: number }[]>(
+      auth,
+      "games",
+      `fields total_rating,total_rating_count; where id = (${batch.join(",")}); limit 500;`,
+    );
+    for (const g of games) {
+      out.set(g.id, g.total_rating ? { rating: Math.round(g.total_rating), ratingCount: g.total_rating_count ?? 0 } : {});
+    }
+    await sleep(300);
+  }
+  return out;
 }
