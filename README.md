@@ -34,7 +34,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/grid.jpg" alt="Owlcart showing the GameCube library in grid view, with region filters and cover art" />
+  <img src="docs/screenshots/grid.jpg" alt="Owlcart showing GameCube games filtered for Mario in grid view, with cover art, IGDB ratings, region flags and version counts" />
 </p>
 
 ---
@@ -45,6 +45,8 @@
 - 🎮 **Console picker** with 43 systems across Nintendo, Sega, Sony, Microsoft, NEC, SNK, Atari and more (<kbd>Ctrl</kbd> <kbd>K</kbd>)
 - 🖼️ **List or grid view**, with cover art and smooth, animated filtering
 - 🌍 **Region filters** shown as flags, with live counts
+- 🗂️ **One card per game**: every region and revision of a game, even under different titles (*Biohazard 2* and *Resident Evil 2*), is grouped, with your preferred region's latest version first
+- ⭐ **Sort by rating**, using IGDB ratings weighted by how many reviews they're based on
 - 📖 **Game details**: summary, release date, developer, genres, rating and screenshots, plus every regional version side by side
 - 🧩 **Updates & DLC** for Xbox 360, PS3, 3DS and Wii, matched to each game and listed in its details
 
@@ -56,9 +58,9 @@
 - 🔔 **Downloads popover** with progress, speed, pause, resume and retry
 
 <p align="center">
-  <img src="docs/screenshots/details.jpg" width="820" alt="The game details window: banner, cover, title, year, developer, region flags, rating and genres, a summary, screenshots and the list of versions with download buttons" />
+  <img src="docs/screenshots/details.jpg" width="720" alt="The details window for Mario Kart: Double Dash!!: banner, cover, year, developer, region flags, rating and genres, a summary, screenshots and every version with download buttons" />
   <br />
-  <sub>Click any game for its details and every regional version. (Artwork blurred in these screenshots.)</sub>
+  <sub>Click any game for its details and every regional version.</sub>
 </p>
 
 **Make it yours**
