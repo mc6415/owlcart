@@ -1,4 +1,4 @@
-# Builds Owlcart for Windows and Linux and publishes a GitHub release when the
+# Builds Owlcart for Windows, Linux and Android and publishes a GitHub release when the
 # version in src-tauri/tauri.conf.json goes up. Bump it with:
 #   npm run bump -- patch   (or minor / major / 1.2.3)
 
@@ -121,9 +121,78 @@ jobs:
           releaseId: ${{ needs.check.outputs.release_id }}
           args: --bundles ${{ matrix.bundles }}
 
+  android:
+    name: Build (Android)
+    needs: check
+    if: needs.check.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    env:
+      NDK_VERSION: 29.0.14206865
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Android NDK
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$NDK_VERSION" > /dev/null
+          echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+          key: android
+
+      - name: Install npm packages
+        run: npm ci
+
+      # The release signing key, from the repo's secrets. Every APK must be
+      # signed with the same key, or Android won't install it as an update.
+      - name: Signing key
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/owlcart-release.jks"
+          printf 'storeFile=%s\nkeyAlias=owlcart\npassword=%s\n' "$RUNNER_TEMP/owlcart-release.jks" "$PASSWORD" \
+            > src-tauri/gen/android/keystore.properties
+
+      - name: Build the APK
+        run: npm run tauri android build -- --apk --target aarch64
+
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ID: ${{ needs.check.outputs.release_id }}
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          apk=src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
+          curl -sSf -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            --data-binary @"$apk" \
+            "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$ID/assets?name=Owlcart_${VERSION}_android_arm64.apk" \
+            --output /dev/null
+          # Mention the APK in the release notes.
+          body=$(gh api "repos/$GITHUB_REPOSITORY/releases/$ID" --jq .body)
+          printf '%s\n**Android:** install the `.apk` (64-bit ARM; allow installs from unknown sources).\n' "$body" > notes.md
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$ID" -F body=@notes.md --jq .html_url
+
   publish:
     name: Publish release
-    needs: [check, build]
+    needs: [check, build, android]
     runs-on: ubuntu-latest
     steps:
       - name: Publish the draft
