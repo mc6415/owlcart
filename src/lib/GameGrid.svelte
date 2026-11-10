@@ -5,6 +5,8 @@
   import Cover from "./Cover.svelte";
   import Flag from "./Flag.svelte";
   import Icon from "./Icon.svelte";
+  import ProgressRing from "./ProgressRing.svelte";
+  import { reduceMotion } from "./motion";
 
   interface Props {
     entries: Entry[];
@@ -22,6 +24,12 @@
     cols?: number;
     /** URLs of games already in the download folder. */
     downloaded?: Set<string>;
+    /** Download progress (0..1) of games being fetched right now. */
+    progress?: Map<string, number>;
+    /** Games that have just finished, for a brief celebration. */
+    justDone?: Set<string>;
+    /** Changes when a new console opens, to play the entrance animation. */
+    introKey?: string;
   }
   let {
     entries,
@@ -34,6 +42,9 @@
     cursor = -1,
     cols = $bindable(1),
     downloaded = new Set(),
+    progress = new Map(),
+    justDone = new Set(),
+    introKey = "",
   }: Props = $props();
 
   const PAD = 14;
@@ -72,9 +83,52 @@
 
   // Animate only when the list itself changes (filter/sort), not while scrolling or resizing.
   const MOVE_MS = 240;
-  const reduceMotion =
-    typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
   let animating = $state(false);
+
+  // A staggered entrance when a new console's games appear.
+  let intro = $state(false);
+  let introTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    introKey;
+    if (reduceMotion || !introKey) return;
+    untrack(() => {
+      intro = true;
+      clearTimeout(introTimer);
+      introTimer = setTimeout(() => (intro = false), 1000);
+    });
+  });
+
+  // 3D tilt toward the pointer, with a soft glare. Written straight to the
+  // element's style so moving the mouse doesn't re-render anything.
+  function tilt(el: HTMLElement) {
+    if (reduceMotion) return;
+    let frame = 0;
+    const move = (ev: PointerEvent) => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const r = el.getBoundingClientRect();
+        const px = (ev.clientX - r.left) / r.width;
+        const py = (ev.clientY - r.top) / r.height;
+        el.style.setProperty("--ry", `${(px - 0.5) * 14}deg`);
+        el.style.setProperty("--rx", `${(0.5 - py) * 12}deg`);
+        el.style.setProperty("--gx", `${px * 100}%`);
+        el.style.setProperty("--gy", `${py * 100}%`);
+      });
+    };
+    const leave = () => {
+      cancelAnimationFrame(frame);
+      el.style.setProperty("--rx", "0deg");
+      el.style.setProperty("--ry", "0deg");
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerleave", leave);
+    return {
+      destroy() {
+        el.removeEventListener("pointermove", move);
+        el.removeEventListener("pointerleave", leave);
+      },
+    };
+  }
   let timer: ReturnType<typeof setTimeout> | undefined;
   let first = true;
   $effect(() => {
@@ -90,7 +144,16 @@
     });
   });
 
-  function fadeIn(_node: Element) {
+  function fadeIn(_node: Element, k: number) {
+    if (intro) {
+      // New console: cards rise in one after another.
+      return {
+        duration: 380,
+        delay: Math.min(k * 28, 520),
+        easing: (t: number) => 1 - Math.pow(1 - t, 3),
+        css: (t: number) => `opacity: ${t}; transform: translateY(${(1 - t) * 18}px) scale(${0.96 + t * 0.04})`,
+      };
+    }
     return {
       duration: animating ? 220 : 0,
       delay: animating ? 60 : 0,
@@ -118,14 +181,14 @@
   onscroll={(e) => (scrollTop = e.currentTarget.scrollTop)}
 >
   <div class="spacer" class:animating style="height: {rows * rowH + PAD}px">
-    {#each visible as { e, i } (e.url)}
+    {#each visible as { e, i }, k (e.url)}
       {@const x = PAD + (i % colCount) * (cardW + GAP)}
       {@const y = PAD + Math.floor(i / colCount) * rowH}
       {#if e.kind === "folder"}
         <button
           class="card"
           style="left: {x}px; top: {y}px; width: {cardW}px"
-          in:fadeIn
+          in:fadeIn={k}
           out:fadeOut
           onclick={() => onOpenFolder(e.url)}
         >
@@ -141,17 +204,20 @@
           class="card"
           class:sel={selected.has(e.url)}
           class:cursor={i === cursor}
+          class:just-done={justDone.has(e.url)}
+          data-url={e.url}
           style="left: {x}px; top: {y}px; width: {cardW}px"
           role="button"
           tabindex="-1"
           title={e.name}
-          in:fadeIn
+          in:fadeIn={k}
           out:fadeOut
           onclick={() => onOpen(e)}
           onkeydown={(k) => (k.key === " " ? toggle(e.url) : k.key === "Enter" && onOpen(e))}
         >
-          <div class="art" style="height: {coverH}px">
+          <div class="art" style="height: {coverH}px" use:tilt>
             <Cover title={n.title} {slug} glow />
+            <span class="glare"></span>
             <button
               class="check"
               title={selected.has(e.url) ? "Deselect" : "Select"}
@@ -167,7 +233,11 @@
                 {#each n.regions as r}<Flag region={r} height={11} />{/each}
               </span>
             {/if}
-            {#if queued.has(e.url)}
+            {#if progress.has(e.url)}
+              <span class="ring" title="Downloading">
+                <ProgressRing value={progress.get(e.url) ?? 0} size={30} />
+              </span>
+            {:else if queued.has(e.url)}
               <span class="queued">queued</span>
             {:else if downloaded.has(e.url)}
               <span class="have" title="Already in your download folder"><Icon name="check" size={13} /></span>
@@ -221,21 +291,88 @@
       left 240ms cubic-bezier(0.2, 0, 0, 1);
   }
   .art {
+    --rx: 0deg;
+    --ry: 0deg;
     position: relative;
-    border-radius: 8px;
-    box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+    border-radius: 10px;
+    box-shadow: 0 2px 6px rgb(0 0 0 / 0.3);
     isolation: isolate;
-    transition: transform 0.15s, box-shadow 0.15s;
+    transform: perspective(700px) rotateX(var(--rx)) rotateY(var(--ry));
+    transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s;
   }
   .card:hover .art {
-    transform: translateY(-3px);
+    transform: perspective(700px) rotateX(var(--rx)) rotateY(var(--ry)) translateY(-4px) scale(1.02);
+    transition: transform 0.12s ease-out, box-shadow 0.2s;
     box-shadow: none;
   }
+  /* A soft highlight that follows the pointer across the cover. */
+  .glare {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    border-radius: 10px;
+    pointer-events: none;
+    background: radial-gradient(circle at var(--gx, 50%) var(--gy, 0%), rgb(255 255 255 / 0.32), transparent 55%);
+    mix-blend-mode: soft-light;
+    opacity: 0;
+    transition: opacity 0.25s;
+  }
+  .card:hover .glare {
+    opacity: 1;
+  }
+  .ring {
+    position: absolute;
+    right: 7px;
+    bottom: 7px;
+    z-index: 3;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: rgb(10 6 20 / 0.7);
+    box-shadow: 0 2px 8px rgb(0 0 0 / 0.4);
+  }
+  /* Just finished: a light sweep across the cover and the tick pops in. */
+  .just-done .art::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    border-radius: 8px;
+    pointer-events: none;
+    background: linear-gradient(105deg, transparent 30%, rgb(255 255 255 / 0.55) 50%, transparent 70%) -150% 0 / 60% 100% no-repeat;
+    animation: sweep 1s ease-out forwards;
+  }
+  .just-done .have {
+    animation: pop 0.55s cubic-bezier(0.3, 1.6, 0.5, 1);
+  }
+  @keyframes sweep {
+    to {
+      background-position: 250% 0;
+    }
+  }
+  @keyframes pop {
+    0% {
+      transform: scale(0);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .art,
+    .card:hover .art {
+      transform: none;
+    }
+    .just-done .art::after,
+    .just-done .have {
+      animation: none;
+    }
+  }
   .cursor .art {
-    box-shadow: 0 0 0 2px var(--text), 0 6px 16px rgb(0 0 0 / 0.3);
+    box-shadow: 0 0 0 2px var(--text), 0 0 26px color-mix(in srgb, var(--text) 25%, transparent);
   }
   .sel .art {
-    box-shadow: 0 0 0 2px var(--accent), 0 6px 16px rgb(0 0 0 / 0.3);
+    box-shadow: 0 0 0 2px var(--accent), 0 0 30px color-mix(in srgb, var(--accent) 55%, transparent);
   }
   .check {
     position: absolute;
@@ -293,6 +430,7 @@
   }
   .have {
     position: absolute;
+    z-index: 3;
     right: 8px;
     bottom: 8px;
     display: grid;

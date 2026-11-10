@@ -4,6 +4,8 @@
   import Icon from "./Icon.svelte";
   import Flag from "./Flag.svelte";
   import { untrack } from "svelte";
+  import ProgressRing from "./ProgressRing.svelte";
+  import { reduceMotion } from "./motion";
 
   interface Props {
     entries: Entry[];
@@ -18,8 +20,39 @@
     cursor?: number;
     /** URLs of games already in the download folder. */
     downloaded?: Set<string>;
+    /** Download progress (0..1) of games being fetched right now. */
+    progress?: Map<string, number>;
+    /** Games that have just finished, for a brief highlight. */
+    justDone?: Set<string>;
+    /** Changes when a new console opens, to play the entrance animation. */
+    introKey?: string;
   }
-  let { entries, selected, queued, onOpenFolder, onDownload, onOpen, cursor = -1, downloaded = new Set() }: Props = $props();
+  let {
+    entries,
+    selected,
+    queued,
+    onOpenFolder,
+    onDownload,
+    onOpen,
+    cursor = -1,
+    downloaded = new Set(),
+    progress = new Map(),
+    justDone = new Set(),
+    introKey = "",
+  }: Props = $props();
+
+  // A staggered entrance when a new console's games appear.
+  let intro = $state(false);
+  let introTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    introKey;
+    if (reduceMotion || !introKey) return;
+    untrack(() => {
+      intro = true;
+      clearTimeout(introTimer);
+      introTimer = setTimeout(() => (intro = false), 900);
+    });
+  });
 
   let viewport = $state<HTMLDivElement>();
   // Keep the keyboard highlight on screen.
@@ -42,8 +75,6 @@
 
   // Animate only when the list itself changes (filter/sort), not while scrolling.
   const MOVE_MS = 220;
-  const reduceMotion =
-    typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
   let animating = $state(false);
   let timer: ReturnType<typeof setTimeout> | undefined;
   let first = true;
@@ -60,7 +91,15 @@
     });
   });
 
-  function fadeIn(_node: Element) {
+  function fadeIn(_node: Element, k: number) {
+    if (intro) {
+      return {
+        duration: 300,
+        delay: Math.min(k * 16, 420),
+        easing: (t: number) => 1 - Math.pow(1 - t, 3),
+        css: (t: number) => `opacity: ${t}; transform: translateY(${(1 - t) * 10}px)`,
+      };
+    }
     return {
       duration: animating ? 200 : 0,
       delay: animating ? 60 : 0,
@@ -88,14 +127,14 @@
 >
   <div class="spacer" style="height: {entries.length * ROW}px">
     <div class="rows" class:animating>
-      {#each visible as { e, i } (e.url)}
+      {#each visible as { e, i }, k (e.url)}
         {#if e.kind === "folder"}
           <button
             class="row folder"
             class:odd={i % 2}
             class:cursor={i === cursor}
             style="height: {ROW}px; top: {i * ROW}px"
-            in:fadeIn
+            in:fadeIn={k}
             out:fadeOut
             onclick={() => onOpenFolder(e.url)}>
             <span class="lead"><Icon name="folder" size={15} /></span>
@@ -110,8 +149,10 @@
             class:sel={selected.has(e.url)}
             class:cursor={i === cursor}
             class:odd={i % 2}
+            class:just-done={justDone.has(e.url)}
+            data-url={e.url}
             style="height: {ROW}px; top: {i * ROW}px"
-            in:fadeIn
+            in:fadeIn={k}
             out:fadeOut
             role="row"
             tabindex="-1"
@@ -140,7 +181,9 @@
             </span>
             <span class="size">{e.size}</span>
             <span class="act">
-              {#if queued.has(e.url)}
+              {#if progress.has(e.url)}
+                <span class="ring" title="Downloading"><ProgressRing value={progress.get(e.url) ?? 0} size={24} /></span>
+              {:else if queued.has(e.url)}
                 <span class="queued">queued</span>
               {:else if downloaded.has(e.url)}
                 <span class="have" title="Already in your download folder"><Icon name="check" size={15} /></span>
@@ -262,6 +305,44 @@
   .row:hover .icon,
   .icon:focus-visible {
     opacity: 1;
+  }
+  .ring {
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: rgb(10 6 20 / 0.55);
+  }
+  .ring :global(.track) {
+    stroke: var(--line);
+  }
+  .ring :global(text) {
+    fill: var(--text);
+  }
+  /* Just finished: the row glows green for a moment and the tick pops in. */
+  .row.just-done {
+    animation: done-glow 1.4s ease-out;
+  }
+  .just-done .have {
+    animation: pop 0.55s cubic-bezier(0.3, 1.6, 0.5, 1);
+  }
+  @keyframes done-glow {
+    0% {
+      background: color-mix(in srgb, var(--ok) 28%, transparent);
+    }
+  }
+  @keyframes pop {
+    0% {
+      transform: scale(0);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .row.just-done,
+    .just-done .have {
+      animation: none;
+    }
   }
   .have {
     color: var(--ok);

@@ -46,6 +46,7 @@
 - 🖼️ **List or grid view**, with cover art and smooth, animated filtering
 - 🌍 **Region filters** shown as flags, with live counts
 - 📖 **Game details**: summary, release date, developer, genres, rating and screenshots, plus every regional version side by side
+- 🧩 **Updates & DLC** for Xbox 360, PS3, 3DS and Wii, matched to each game and listed in its details
 
 **Download them**
 - ⚡ **Single games from huge torrents**: Owlcart fetches only the file you pick, not the whole console set

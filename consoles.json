@@ -74,14 +74,26 @@
     "name": "Wii",
     "folder": "wii",
     "listing": "https://minerva-archive.org/browse/Redump/Nintendo%20-%20Wii%20-%20NKit%20RVZ%20%5Bzstd-19-128k%5D/",
-    "igdb": "wii"
+    "igdb": "wii",
+    "addons": [
+      {
+        "kind": "dlc",
+        "listing": "https://minerva-archive.org/browse/No-Intro/Unofficial%20-%20Nintendo%20-%20Wii%20%28Digital%29%20%28Split%20DLC%29%20%28Deprecated%29%20%28WAD%29/"
+      }
+    ]
   },
   {
     "group": "Nintendo",
     "name": "Nintendo 3DS",
     "folder": "n3ds",
     "listing": "https://minerva-archive.org/browse/No-Intro/Nintendo%20-%20Nintendo%203DS%20%28Decrypted%29/",
-    "igdb": "3ds"
+    "igdb": "3ds",
+    "addons": [
+      {
+        "kind": "mixed",
+        "listing": "https://minerva-archive.org/browse/No-Intro/Unofficial%20-%20Nintendo%20-%20Nintendo%203DS%20%28Digital%29%20%28Updates%20and%20DLC%29%20%28Decrypted%29/"
+      }
+    ]
   },
   {
     "group": "Nintendo",
@@ -172,7 +184,17 @@
     "name": "PlayStation 3",
     "folder": "ps3",
     "listing": "https://minerva-archive.org/browse/Redump/Sony%20-%20PlayStation%203/",
-    "igdb": "ps3"
+    "igdb": "ps3",
+    "addons": [
+      {
+        "kind": "update",
+        "listing": "https://minerva-archive.org/browse/No-Intro/Sony%20-%20PlayStation%203%20%28PSN%29%20%28Updates%29/"
+      },
+      {
+        "kind": "dlc",
+        "listing": "https://minerva-archive.org/browse/No-Intro/Sony%20-%20PlayStation%203%20%28PSN%29%20%28DLC%29/"
+      }
+    ]
   },
   {
     "group": "Microsoft",
@@ -186,7 +208,17 @@
     "name": "Xbox 360",
     "folder": "xbox360",
     "listing": "https://minerva-archive.org/browse/Redump/Microsoft%20-%20Xbox%20360/",
-    "igdb": "xbox360"
+    "igdb": "xbox360",
+    "addons": [
+      {
+        "kind": "update",
+        "listing": "https://minerva-archive.org/browse/No-Intro/Unofficial%20-%20Microsoft%20-%20Xbox%20360%20%28Title%20Updates%29/"
+      },
+      {
+        "kind": "dlc",
+        "listing": "https://minerva-archive.org/browse/No-Intro/Microsoft%20-%20Xbox%20360%20%28Digital%29/"
+      }
+    ]
   },
   {
     "group": "NEC",

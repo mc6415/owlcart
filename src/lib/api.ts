@@ -73,7 +73,8 @@ export const api = {
   engineStatus: () => invoke<{ ok: boolean; error: string | null }>("engine_status"),
   loadListing: (url: string) => invoke<Listing>("load_listing", { url }),
   /** `folder` names the console's download subfolder (e.g. "psx"); omit to use the archive's name. */
-  enqueue: (items: { name: string; url: string; folder?: string }[]) => invoke<void>("enqueue", { items }),
+  enqueue: (items: { name: string; url: string; folder?: string; subfolder?: string }[]) =>
+    invoke<void>("enqueue", { items }),
   listJobs: () => invoke<Job[]>("list_jobs"),
   pause: (id: number) => invoke<void>("pause_job", { id }),
   resume: (id: number) => invoke<void>("resume_job", { id }),

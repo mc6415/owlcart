@@ -16,6 +16,12 @@
   import Flag from "$lib/Flag.svelte";
   import GameModal from "$lib/GameModal.svelte";
   import ConsolePicker from "$lib/ConsolePicker.svelte";
+  import Skeleton from "$lib/Skeleton.svelte";
+  import HeroCollage from "$lib/HeroCollage.svelte";
+  import { flyToDownloads } from "$lib/motion";
+  import { loadAddons, type Addon } from "$lib/addons";
+  import { coverFor } from "$lib/covers.svelte";
+  import { fade } from "svelte/transition";
   import { loadConsoles, consoleFor, type ConsoleInfo } from "$lib/consoles";
 
   const DEFAULT_URL = "https://minerva-archive.org/browse/Redump/Microsoft%20-%20Xbox%20360/";
@@ -91,7 +97,19 @@
       ? listing.entries.filter((e) => e.kind === "file" && parseName(e.name).title === detailTitle)
       : [],
   );
-  const openDetails = (e: Entry) => (detailTitle = parseName(e.name).title);
+  /** Where the details modal grows from: the clicked card's cover, or its list row. */
+  type Origin = { url: string; rect: DOMRect; card: boolean };
+  let detailOrigin = $state<Origin | null>(null);
+  function originFor(url: string): Origin | null {
+    const el = document.querySelector(`[data-url="${CSS.escape(url)}"]`);
+    if (!el) return null;
+    const art = el.querySelector(".art");
+    return { url, rect: (art ?? el).getBoundingClientRect(), card: !!art };
+  }
+  const openDetails = (e: Entry) => {
+    detailOrigin = originFor(e.url);
+    detailTitle = parseName(e.name).title;
+  };
 
   // ---- keyboard shortcuts ----
   const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
@@ -376,6 +394,97 @@
     new Set((listing?.entries ?? []).filter((e) => e.kind === "file" && have[fileStem(e.name)]).map((e) => e.url)),
   );
   let tint = $derived(TINTS[currentConsole?.group ?? ""] ?? "var(--accent)");
+
+  // Updates and DLC, loaded in the background for consoles that have them.
+  let addonsByGame = $state<Map<string, { updates: Addon[]; dlc: Addon[] }> | null>(null);
+  let addonsLoading = $state(false);
+  $effect(() => {
+    const c = currentConsole;
+    const l = listing;
+    addonsByGame = null;
+    if (!l || !c?.addons?.length) return;
+    const games = new Set(l.entries.filter((e) => e.kind === "file").map((e) => parseName(e.name).title));
+    let alive = true;
+    addonsLoading = true;
+    loadAddons(l.url, c.addons, games)
+      .then((m) => alive && (addonsByGame = m))
+      .catch((e) => console.warn("updates/DLC unavailable", e))
+      .finally(() => alive && (addonsLoading = false));
+    return () => {
+      alive = false;
+    };
+  });
+
+  // ---- ambient light and spotlight ----
+
+  /** Cover whose colours wash softly over the window (the hovered game). */
+  let ambient = $state<string | null>(null);
+  let ambientTimer: ReturnType<typeof setTimeout> | undefined;
+  function onPointerOver(ev: PointerEvent) {
+    const card = (ev.target as Element | null)?.closest?.("[data-url]");
+    const img = card?.querySelector<HTMLImageElement>(".art img:not(.glow)");
+    if (!img?.complete || !img.src || img.src === ambient) return;
+    clearTimeout(ambientTimer);
+    ambientTimer = setTimeout(() => (ambient = img.src), 140);
+  }
+
+  /** A featured game in the header, picked when a console opens. */
+  let spotlight = $state<{ title: string; cover: string; entry: Entry } | null>(null);
+  let spotImg = $state<HTMLImageElement>();
+  async function pickSpotlight() {
+    const l = listing;
+    if (!l || !artTitles?.size) return (spotlight = null);
+    const files = l.entries.filter((e) => e.kind === "file" && !isExtra(parseName(e.name)));
+    const titles = [...new Set(files.map((e) => parseName(e.name).title))].filter((t) => artTitles!.has(t));
+    for (let tries = 0; tries < 5 && titles.length; tries++) {
+      const title = titles[Math.floor(Math.random() * titles.length)];
+      const cover = await coverFor(title, listingSlug(l.url));
+      if (l !== listing) return; // console changed meanwhile
+      if (cover) {
+        const entry = files.find((e) => parseName(e.name).title === title)!;
+        spotlight = { title, cover, entry };
+        ambient = cover;
+        return;
+      }
+    }
+    spotlight = null;
+  }
+  $effect(() => {
+    listing;
+    artTitles;
+    pickSpotlight();
+  });
+  function openSpotlight() {
+    if (!spotlight) return;
+    detailOrigin = spotImg ? { url: spotlight.entry.url, rect: spotImg.getBoundingClientRect(), card: true } : null;
+    detailTitle = spotlight.title;
+  }
+
+  /** Progress (0..1) of games downloading or unpacking right now, by URL. */
+  let progressByUrl = $derived(
+    new Map(
+      jobs
+        .filter((j) => ["downloading", "paused", "moving", "extracting"].includes(j.state) && j.total > 0)
+        .map((j) => [j.romUrl, j.completed / j.total]),
+    ),
+  );
+
+  // Games that just finished get a brief celebration on their card.
+  let justDone = new SvelteSet<string>();
+  let seenDone: Set<number> | null = null;
+  $effect(() => {
+    const done = jobs.filter((j) => j.state === "done");
+    if (!seenDone) {
+      seenDone = new Set(done.map((j) => j.id)); // don't celebrate old ones on startup
+      return;
+    }
+    for (const j of done) {
+      if (seenDone.has(j.id)) continue;
+      seenDone.add(j.id);
+      justDone.add(j.romUrl);
+      setTimeout(() => justDone.delete(j.romUrl), 1600);
+    }
+  });
   let totalBytes = $derived(listing?.entries.reduce((s, e) => s + (e.kind === "file" ? e.sizeBytes : 0), 0) ?? 0);
   let fileCount = $derived(listing?.entries.filter((e) => e.kind === "file").length ?? 0);
 
@@ -402,10 +511,23 @@
     else visibleFiles.forEach((e) => selected.add(e.url));
   }
 
-  async function download(entries: Entry[]) {
+  /** Sends covers (or dots, in list view) flying into the downloads button. */
+  function flyFrom(entries: Entry[]) {
+    entries.slice(0, 5).forEach((e, i) => {
+      const modalCover = detailTitle ? document.querySelector(".panel .cover") : null;
+      const card = document.querySelector(`[data-url="${CSS.escape(e.url)}"]`);
+      const src = modalCover ?? card?.querySelector(".art") ?? card?.querySelector(".act") ?? card;
+      if (!src) return;
+      const img = src.querySelector<HTMLImageElement>("img:not(.glow)");
+      flyToDownloads(src.getBoundingClientRect(), img?.complete ? img.src : null, i * 70);
+    });
+  }
+
+  async function download(entries: Entry[], subfolder?: string) {
+    flyFrom(entries);
     try {
       const folder = listing ? consoleFor(listing.url, consoles)?.folder : undefined;
-      await api.enqueue(entries.map((e) => ({ name: e.name, url: e.url, folder })));
+      await api.enqueue(entries.map((e) => ({ name: e.name, url: e.url, folder, subfolder })));
       entries.forEach((e) => selected.delete(e.url));
     } catch (e) {
       error = String(e);
@@ -489,6 +611,12 @@
 </script>
 
 <div class="app" class:maximized>
+  <!-- The hovered game's colours, as a soft wash behind everything. -->
+  <div class="ambient" aria-hidden="true">
+    {#key ambient}
+      {#if ambient}<img src={ambient} alt="" transition:fade={{ duration: 900 }} />{/if}
+    {/key}
+  </div>
   <header class="titlebar" data-tauri-drag-region>
     <div class="brand" data-tauri-drag-region>
       <svg width="22" height="22" viewBox="0 0 64 64" aria-hidden="true">
@@ -537,22 +665,40 @@
   {/if}
 
   <div class="body">
-    <main>
+    <main onpointerover={onPointerOver}>
       {#if listing}
         <section class="hero" style="--tint: {tint}">
+          <HeroCollage slug={listingSlug(listing.url)} titles={artTitles ? [...artTitles] : []} />
           <div class="hero-text">
             <div class="eyebrow">{currentConsole?.group ?? listing.crumbs.at(-2)?.name ?? "Minerva"}</div>
             <h1>{currentConsole?.name ?? listing.crumbs.at(-1)?.name ?? "Browse"}</h1>
+            <div class="stats">
+              {#if fileCount}
+                <div><b>{fileCount.toLocaleString()}</b><span>files</span></div>
+                <div><b>{formatBytes(totalBytes)}</b><span>total</span></div>
+              {/if}
+              {#if folderCount && !fileCount}
+                <div><b>{folderCount}</b><span>folders</span></div>
+              {/if}
+            </div>
           </div>
-          <div class="stats">
-            {#if fileCount}
-              <div><b>{fileCount.toLocaleString()}</b><span>files</span></div>
-              <div><b>{formatBytes(totalBytes)}</b><span>total</span></div>
-            {/if}
-            {#if folderCount && !fileCount}
-              <div><b>{folderCount}</b><span>folders</span></div>
-            {/if}
-          </div>
+          {#if spotlight}
+            {#key spotlight.title}
+              <div class="spot" in:fade={{ duration: 400 }}>
+                <button class="spot-main" onclick={openSpotlight} title="View details">
+                  <img class="spot-cover" bind:this={spotImg} src={spotlight.cover} alt={spotlight.title} />
+                  <span class="spot-text">
+                    <span class="spot-eyebrow">Spotlight</span>
+                    <span class="spot-title">{spotlight.title}</span>
+                    <span class="spot-cta">View details →</span>
+                  </span>
+                </button>
+                <button class="icon spot-shuffle" title="Show another" onclick={pickSpotlight}>
+                  <Icon name="retry" size={14} />
+                </button>
+              </div>
+            {/key}
+          {/if}
         </section>
         <div class="subbar">
           <nav class="crumbs">
@@ -644,8 +790,13 @@
           <span></span>
         </div>
 
-        {#if view === "grid"}
+        {#if loading}
+          <Skeleton {view} />
+        {:else if view === "grid"}
           <GameGrid
+            progress={progressByUrl}
+            {justDone}
+            introKey={listing.url}
             downloaded={downloadedUrls}
             bind:cols={gridCols}
             {cursor}
@@ -662,6 +813,9 @@
           />
         {:else}
           <GameList
+            progress={progressByUrl}
+            {justDone}
+            introKey={listing.url}
             downloaded={downloadedUrls}
             {cursor}
             entries={filtered}
@@ -688,7 +842,11 @@
           </div>
         {/if}
       {:else}
-        <p class="placeholder">{loading ? "Loading listing…" : "Enter a /browse/ link above."}</p>
+        {#if loading}
+          <Skeleton {view} />
+        {:else}
+          <p class="placeholder">Choose a console to start.</p>
+        {/if}
       {/if}
     </main>
 
@@ -720,6 +878,12 @@
     onDownload={(e) => download([e])}
     onClose={() => (detailTitle = null)}
     pathFor={(e) => have[fileStem(e.name)]}
+    origin={detailOrigin}
+    addonsEnabled={!!currentConsole?.addons?.length}
+    addons={addonsByGame?.get(detailTitle)}
+    {addonsLoading}
+    onDownloadAddon={(a) => download([a.entry], a.kind === "update" ? "Updates" : "DLC")}
+    findOrigin={() => (detailOrigin ? originFor(detailOrigin.url) : null)}
   />
 {/if}
 
@@ -1098,16 +1262,47 @@
     flex-direction: column;
     min-width: 0;
   }
+  /* The hovered game's colours, washed across the window. A tiny image scaled
+     up is far cheaper to blur than a full-size one. */
+  .ambient {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .ambient img {
+    position: absolute;
+    left: 50%;
+    top: 55%;
+    width: 64px;
+    height: 96px;
+    object-fit: cover;
+    transform: translate(-50%, -50%) scale(24, 14);
+    filter: blur(3px) saturate(1.7);
+    opacity: 0.2;
+  }
   .hero {
     position: relative;
+    isolation: isolate;
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: space-between;
     gap: 24px;
-    padding: 22px 20px 16px;
+    min-height: 150px;
+    padding: 24px 24px 22px;
     overflow: hidden;
     flex-shrink: 0;
     border-bottom: 1px solid var(--line);
+  }
+  /* Keeps the console name readable over the collage. */
+  .hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(90deg, var(--bg) 18%, color-mix(in srgb, var(--bg) 40%, transparent) 55%, color-mix(in srgb, var(--bg) 70%, transparent));
+    pointer-events: none;
   }
   .hero::before {
     content: "";
@@ -1115,7 +1310,7 @@
     inset: -40% -10% auto auto;
     width: 70%;
     height: 220%;
-    z-index: -1;
+    z-index: -3;
     background:
       radial-gradient(closest-side, color-mix(in srgb, var(--tint) 34%, transparent), transparent),
       radial-gradient(closest-side at 30% 60%, color-mix(in srgb, var(--accent) 26%, transparent), transparent);
@@ -1129,22 +1324,98 @@
     color: color-mix(in srgb, var(--tint) 55%, var(--text));
   }
   h1 {
-    margin: 2px 0 0;
-    font: 700 30px/1.05 var(--display);
-    letter-spacing: -0.03em;
+    margin: 4px 0 0;
+    font: 700 40px/1.02 var(--display);
+    letter-spacing: -0.035em;
+    background: linear-gradient(95deg, var(--text) 30%, color-mix(in srgb, var(--tint) 65%, var(--text)));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
   .stats {
     display: flex;
     gap: 22px;
+    margin-top: 12px;
   }
   .stats div {
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
+    align-items: baseline;
+    gap: 5px;
   }
   .stats b {
-    font: 600 17px var(--mono);
+    font: 600 15px var(--mono);
     letter-spacing: -0.02em;
+  }
+  .spot {
+    position: relative;
+    flex-shrink: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .spot-main {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 18px 8px 8px;
+    border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--panel) 55%, transparent);
+    backdrop-filter: blur(12px);
+    text-align: left;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .spot-main:hover {
+    border-color: color-mix(in srgb, var(--tint) 60%, transparent);
+    background: color-mix(in srgb, var(--panel) 75%, transparent);
+  }
+  .spot-cover {
+    width: 72px;
+    aspect-ratio: 2 / 3;
+    object-fit: cover;
+    border-radius: 8px;
+    transform: rotate(-4deg);
+    box-shadow: 0 12px 28px rgb(0 0 0 / 0.5);
+    transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .spot-main:hover .spot-cover {
+    transform: rotate(0deg) scale(1.06);
+  }
+  .spot-text {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    max-width: 220px;
+  }
+  .spot-eyebrow {
+    font: 600 10px var(--display);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--tint) 60%, var(--text));
+  }
+  .spot-title {
+    font: 700 16px/1.2 var(--display);
+    letter-spacing: -0.01em;
+    color: var(--text);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .spot-cta {
+    font-size: 12px;
+    color: var(--muted);
+    transition: color 0.2s;
+  }
+  .spot-main:hover .spot-cta {
+    color: var(--text);
+  }
+  .spot-shuffle {
+    opacity: 0.6;
+  }
+  .spot:hover .spot-shuffle {
+    opacity: 1;
   }
   .stats span {
     font-size: 11px;

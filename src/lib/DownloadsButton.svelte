@@ -59,6 +59,7 @@
 <div class="wrap" bind:this={root}>
   <button
     class="trigger"
+    data-downloads-button
     class:open
     class:bump
     title={inProgress.length ? `${inProgress.length} downloading (D)` : "Downloads (D)"}

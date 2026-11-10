@@ -8,6 +8,12 @@ import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
   preprocess: vitePreprocess(),
+  // Ship each component's (scoped) styles inside its JS instead of as a separate
+  // CSS module. The dev server sometimes served those CSS modules raw and
+  // unscoped, letting one component's styles leak into others.
+  vitePlugin: {
+    emitCss: false,
+  },
   kit: {
     adapter: adapter({
       fallback: "index.html",

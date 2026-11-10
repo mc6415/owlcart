@@ -112,7 +112,7 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
-    border-radius: 8px;
+    border-radius: 10px;
     background:
       radial-gradient(120% 80% at 20% 0%, hsl(var(--h) 45% 42% / 0.9), transparent 70%),
       linear-gradient(160deg, hsl(var(--h) 35% 28%), hsl(calc(var(--h) + 40) 30% 14%));

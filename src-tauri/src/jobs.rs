@@ -138,6 +138,8 @@ pub struct Job {
     dest_dir: Option<PathBuf>,
     #[serde(skip)]
     folder: Option<String>,
+    #[serde(skip)]
+    subfolder: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -148,6 +150,9 @@ pub struct EnqueueItem {
     /// Download subfolder for this console (e.g. "psx"), if known.
     #[serde(default)]
     pub folder: Option<String>,
+    /// Further subfolder inside it, e.g. "Updates" or "DLC".
+    #[serde(default)]
+    pub subfolder: Option<String>,
 }
 
 pub struct Manager {
@@ -341,11 +346,17 @@ impl Manager {
     ) -> Result<HashMap<String, String>> {
         let base = self.settings.lock().await.download_dir.clone();
         let mut dirs = vec![];
-        if let Some(f) = folder.as_deref().and_then(safe_folder) {
-            dirs.push(base.join(f));
-        }
-        if let Some(f) = archive_folder.as_deref().and_then(scrape::sanitize_folder) {
-            dirs.push(base.join(f));
+        for f in [
+            folder.as_deref().and_then(safe_folder),
+            archive_folder.as_deref().and_then(scrape::sanitize_folder),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            // The console folder, plus its Updates and DLC folders.
+            for sub in ["", "Updates", "DLC"] {
+                dirs.push(base.join(&f).join(sub));
+            }
         }
         dirs.push(base);
 
@@ -487,6 +498,7 @@ impl Manager {
                 work_dir: None,
                 dest_dir: None,
                 folder: item.folder.as_deref().and_then(safe_folder),
+                subfolder: item.subfolder.as_deref().and_then(safe_folder),
             });
             let me = self.clone();
             tokio::spawn(async move { me.resolve(id).await });
@@ -767,10 +779,15 @@ impl Manager {
                     let folder = per_console
                         .then(|| j.folder.clone().or_else(|| info.console_folder()))
                         .flatten();
-                    j.dest_dir = Some(match folder {
+                    let mut d = match folder {
                         Some(f) => dest.join(f),
                         None => dest,
-                    });
+                    };
+                    // Updates and DLC go in their own folder: psx/Updates, psx/DLC.
+                    if let Some(sub) = &j.subfolder {
+                        d = d.join(sub);
+                    }
+                    j.dest_dir = Some(d);
                     j.state = JobState::Downloading;
                     None
                 }

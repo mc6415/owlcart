@@ -1,6 +1,8 @@
 <script lang="ts">
-  import { fade, scale } from "svelte/transition";
-  import { cubicOut } from "svelte/easing";
+  import { onMount } from "svelte";
+  import { fade } from "svelte/transition";
+  import { reduceMotion, EASE_OUT } from "./motion";
+  import type { Addon } from "./addons";
   import { api, gameDetails, igdbImage, parseName, type Entry, type GameDetails } from "./api";
   import { coverFor } from "./covers.svelte";
   import Cover from "./Cover.svelte";
@@ -18,8 +20,95 @@
     onClose: () => void;
     /** Where a version already is on disk, if it's downloaded. */
     pathFor?: (e: Entry) => string | undefined;
+    /** Where the modal grows from: the clicked card's cover, or its list row. */
+    origin?: { rect: DOMRect; card: boolean } | null;
+    /** Finds that spot again when closing (it may have moved or scrolled away). */
+    findOrigin?: () => { rect: DOMRect; card: boolean } | null;
+    /** Whether this console has update/DLC collections at all. */
+    addonsEnabled?: boolean;
+    /** This game's updates and DLC, once loaded. */
+    addons?: { updates: Addon[]; dlc: Addon[] };
+    addonsLoading?: boolean;
+    onDownloadAddon?: (a: Addon) => void;
   }
-  let { title, versions, slug, queued, onDownload, onClose, pathFor = () => undefined }: Props = $props();
+  let {
+    title,
+    versions,
+    slug,
+    queued,
+    onDownload,
+    onClose,
+    pathFor = () => undefined,
+    origin = null,
+    findOrigin = () => null,
+    addonsEnabled = false,
+    addons = undefined,
+    addonsLoading = false,
+    onDownloadAddon = () => {},
+  }: Props = $props();
+
+  const DLC_PREVIEW = 8;
+  let showAllDlc = $state(false);
+  let dlcShown = $derived(addons ? (showAllDlc ? addons.dlc : addons.dlc.slice(0, DLC_PREVIEW)) : []);
+
+  let panelEl = $state<HTMLDivElement>();
+  let coverEl = $state<HTMLDivElement>();
+
+  /** Transform that puts the modal's cover exactly over `rect`. */
+  function coverTransform(rect: DOMRect) {
+    const t = coverEl!.getBoundingClientRect();
+    const dx = rect.left + rect.width / 2 - (t.left + t.width / 2);
+    const dy = rect.top + rect.height / 2 - (t.top + t.height / 2);
+    return `translate(${dx}px, ${dy}px) scale(${rect.width / t.width}, ${rect.height / t.height})`;
+  }
+
+  /** Panel transform that starts it small, centred on `rect`. */
+  function panelFrom(rect: DOMRect) {
+    const p = panelEl!.getBoundingClientRect();
+    const dy = rect.top + rect.height / 2 - (p.top + p.height / 2);
+    return `translateY(${dy * 0.6}px) scale(0.86)`;
+  }
+
+  // Opening: the clicked card's cover grows into the modal's cover, and the
+  // panel unfolds around it. From the list, the panel grows out of the row.
+  onMount(() => {
+    if (!panelEl || reduceMotion) return;
+    const opts = { duration: 460, easing: EASE_OUT };
+    if (origin?.card && coverEl) {
+      coverEl.animate([{ transform: coverTransform(origin.rect), borderRadius: "8px" }, { transform: "none" }], opts);
+      panelEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 260, easing: "ease-out" });
+    } else if (origin) {
+      panelEl.animate([{ opacity: 0, transform: panelFrom(origin.rect) }, { opacity: 1, transform: "none" }], opts);
+    } else {
+      panelEl.animate([{ opacity: 0, transform: "scale(0.96)" }, { opacity: 1, transform: "none" }], {
+        duration: 220,
+        easing: EASE_OUT,
+      });
+    }
+  });
+
+  // Closing runs the opening in reverse, then tells the page.
+  let closing = false;
+  function close() {
+    if (closing) return;
+    closing = true;
+    if (!panelEl || reduceMotion) return onClose();
+    const back = findOrigin();
+    const opts = { duration: 340, easing: "cubic-bezier(0.4, 0, 0.6, 1)", fill: "forwards" as const };
+    let anim: Animation;
+    if (back?.card && coverEl) {
+      anim = coverEl.animate([{ transform: "none" }, { transform: coverTransform(back.rect), borderRadius: "8px" }], opts);
+      panelEl.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240, delay: 60, fill: "forwards" });
+    } else if (back) {
+      anim = panelEl.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: panelFrom(back.rect) }], opts);
+    } else {
+      anim = panelEl.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "scale(0.96)" }], {
+        ...opts,
+        duration: 180,
+      });
+    }
+    anim.onfinish = () => onClose();
+  }
 
   let details = $state<GameDetails | null>(null);
   let loading = $state(true);
@@ -49,20 +138,20 @@
   let allRegions = $derived([...new Set(versions.flatMap((v) => parseName(v.name).regions))]);
 
   function onKey(e: KeyboardEvent) {
-    if (e.key === "Escape") onClose();
+    if (e.key === "Escape") close();
   }
 </script>
 
 <svelte:window onkeydown={onKey} />
 
-<div class="backdrop" role="presentation" transition:fade={{ duration: 150 }} onclick={onClose}>
+<div class="backdrop" role="presentation" transition:fade={{ duration: 200 }} onclick={close}>
   <div
+    bind:this={panelEl}
     class="panel"
     role="dialog"
     aria-modal="true"
     aria-label={title}
     tabindex="-1"
-    transition:scale={{ duration: 200, start: 0.96, easing: cubicOut }}
     onclick={(e) => e.stopPropagation()}
     onkeydown={() => {}}
   >
@@ -72,11 +161,11 @@
           <img class="hero-img" src={hero} alt="" transition:fade={{ duration: 250 }} />
         {/key}
       {/if}
-      <button class="icon close" title="Close" onclick={onClose}><Icon name="x" size={16} /></button>
+      <button class="icon close" title="Close" onclick={close}><Icon name="x" size={16} /></button>
     </div>
 
     <div class="head">
-      <div class="cover">
+      <div class="cover" bind:this={coverEl}>
         {#if coverUrl}
           <img src={coverUrl} alt={title} />
         {:else}
@@ -155,6 +244,57 @@
         {/each}
       </div>
 
+      {#if addonsEnabled}
+        <h3>
+          Updates &amp; DLC
+          {#if addons}<span class="count">{addons.updates.length + addons.dlc.length}</span>{/if}
+        </h3>
+        {#if !addons && addonsLoading}
+          <p class="muted">Looking for updates and DLC…</p>
+        {:else if !addons || (!addons.updates.length && !addons.dlc.length)}
+          <p class="muted">None found for this game.</p>
+        {:else}
+          {#each [{ label: "Updates", items: addons.updates }, { label: "DLC", items: dlcShown }] as group (group.label)}
+            {#if group.items.length}
+              <div class="group-label">{group.label}{group.label === "DLC" ? ` · ${addons.dlc.length}` : ""}</div>
+              <div class="versions">
+                {#each group.items as a (a.entry.url)}
+                  {@const n = parseName(a.entry.name)}
+                  {@const path = pathFor(a.entry)}
+                  <div class="version">
+                    <span class="vflags">
+                      {#each n.regions as r}<Flag region={r} height={12} />{/each}
+                    </span>
+                    <span class="vname" title={a.entry.name}>{a.label}</span>
+                    <span class="vsize">{a.entry.size}</span>
+                    {#if queued.has(a.entry.url)}
+                      <span class="queued">queued</span>
+                    {:else if path}
+                      <span class="vhave">
+                        <span class="ok"><Icon name="check" size={13} /> Downloaded</span>
+                        <button class="icon" title="Show in folder" onclick={() => api.revealFile(path)}>
+                          <Icon name="reveal" size={14} />
+                        </button>
+                      </span>
+                    {:else}
+                      <button class="secondary small" onclick={() => onDownloadAddon(a)}>
+                        <Icon name="download" size={14} /> Download
+                      </button>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          {/each}
+          {#if addons.dlc.length > DLC_PREVIEW}
+            <button class="text more" onclick={() => (showAllDlc = !showAllDlc)}>
+              {showAllDlc ? "Show fewer" : `Show all ${addons.dlc.length} DLC`}
+            </button>
+          {/if}
+          <p class="credit">Saved to the console's Updates and DLC folders.</p>
+        {/if}
+      {/if}
+
       {#if details}
         <p class="credit">Game details from IGDB.com</p>
       {/if}
@@ -178,7 +318,8 @@
     max-height: 88vh;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    /* Not clipped, so the cover can fly in from the grid; the banner clips itself. */
+    overflow: visible;
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: 14px;
@@ -188,6 +329,8 @@
     position: relative;
     height: 240px;
     flex-shrink: 0;
+    overflow: hidden;
+    border-radius: 13px 13px 0 0;
     background:
       radial-gradient(100% 120% at 20% 0%, color-mix(in srgb, var(--accent) 45%, transparent), transparent 70%),
       var(--field);
@@ -287,6 +430,7 @@
     font: 600 12px var(--mono);
   }
   .body {
+    min-height: 0; /* scroll inside the panel rather than growing past it */
     overflow-y: auto;
     padding: 18px 24px 22px;
     user-select: text;
@@ -327,10 +471,37 @@
     display: block;
   }
   h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     margin: 20px 0 8px;
     font-size: 12px;
     font-weight: 600;
     color: var(--muted);
+  }
+  h3 .count {
+    padding: 0 7px;
+    border-radius: 9px;
+    background: var(--chip);
+    font: 600 11px/18px var(--mono);
+    color: var(--text);
+  }
+  .group-label {
+    margin: 12px 0 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .more {
+    margin-top: 6px;
+    font-size: 12px;
+  }
+  :global(button.secondary.small) {
+    height: 26px;
+    padding: 0 10px;
+    font-size: 12px;
   }
   .versions {
     border: 1px solid var(--line);

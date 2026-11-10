@@ -1,6 +1,7 @@
 import bundled from "../../consoles.json";
 import { api } from "./api";
 import { listingSlug } from "./names";
+import type { AddonCollection } from "./addons-core";
 
 export interface ConsoleInfo {
   group: string;
@@ -10,6 +11,8 @@ export interface ConsoleInfo {
   listing: string;
   /** IGDB platform slug, for fetching game details. */
   igdb?: string;
+  /** Collections holding this console's updates and DLC. */
+  addons?: AddonCollection[];
   /** Present when the game data has covers/details for this console. */
   titles?: number;
   covers?: number;
@@ -26,6 +29,7 @@ export async function loadConsoles(): Promise<ConsoleInfo[]> {
     folder: c.folder,
     listing: c.listing,
     igdb: c.igdb,
+    addons: (c as { addons?: AddonCollection[] }).addons,
   }));
   try {
     const index = await api.consoleIndex();
