@@ -3429,7 +3429,7 @@ dependencies = [
 
 [[package]]
 name = "owlcart"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
