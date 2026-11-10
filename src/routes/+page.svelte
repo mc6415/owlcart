@@ -24,6 +24,7 @@
   import { coverFor } from "$lib/covers.svelte";
   import { fade } from "svelte/transition";
   import { loadConsoles, consoleFor, type ConsoleInfo } from "$lib/consoles";
+  import { compareVersions, preferredRegions } from "$lib/versions";
 
   const DEFAULT_URL = "https://minerva-archive.org/browse/Redump/Microsoft%20-%20Xbox%20360/";
 
@@ -54,7 +55,8 @@
   let engineError = $state<string | null>(null);
 
   let query = $state("");
-  let sortBy = $state<"name" | "size">("name");
+  type SortKey = "name" | "rating" | "size";
+  let sortBy = $state<SortKey>("name");
   let sortDesc = $state(false);
   let selected = new SvelteSet<string>();
   let regionSel = new SvelteSet<string>();
@@ -93,11 +95,8 @@
 
   /** Title of the game shown in the details modal. */
   let detailTitle = $state<string | null>(null);
-  let detailVersions = $derived(
-    detailTitle && listing
-      ? listing.entries.filter((e) => e.kind === "file" && parseName(e.name).title === detailTitle)
-      : [],
-  );
+  /** Every version of the game in the details modal, best first. */
+  let detailVersions = $derived(detailTitle ? versionsOf(detailTitle) : []);
   /** Where the details modal grows from: the clicked card's cover, or its list row. */
   type Origin = { url: string; rect: DOMRect; card: boolean };
   let detailOrigin = $state<Origin | null>(null);
@@ -395,10 +394,27 @@
   // when the console has no cover data (then nothing is hidden).
   let hideNoArt = $state(false);
   let artTitles = $state<Set<string> | null>(null);
+  /** IGDB [rating, review count] of each rated game on this console, by title. */
+  let ratings = $state<Record<string, [number, number]>>({});
+  /**
+   * Rating used for sorting: blended with the console's average as if every
+   * game had 50 more average reviews, so a game rated 98 from a handful of
+   * reviews doesn't outrank one rated 95 from hundreds.
+   */
+  let sortScores = $derived.by(() => {
+    const all = Object.values(ratings);
+    const mean = all.length ? all.reduce((s, [r]) => s + r, 0) / all.length : 0;
+    const PRIOR = 50;
+    return new Map(Object.entries(ratings).map(([t, [r, n]]) => [t, (r * n + mean * PRIOR) / (n + PRIOR)]));
+  });
+  /** Loads which games have art, and their ratings, for the current console. */
   async function refreshArtTitles() {
     const slug = listing ? listingSlug(listing.url) : "";
-    const titles = slug ? await api.coverTitles(slug).catch(() => null) : null;
+    const [titles, r] = slug
+      ? await Promise.all([api.coverTitles(slug).catch(() => null), api.ratings(slug).catch(() => ({}))])
+      : [null, {}];
     artTitles = titles ? new Set(titles) : null;
+    ratings = r;
   }
   $effect(() => {
     listing; // reload when the console changes
@@ -424,10 +440,39 @@
     new Set(jobs.filter((j) => !["done", "failed", "cancelled"].includes(j.state)).map((j) => j.romUrl)),
   );
 
-  /** Regions of each file, keyed by URL. */
+  /** Each file's title and regions, keyed by URL. */
+  let titleOf = $derived(
+    new Map((listing?.entries ?? []).filter((e) => e.kind === "file").map((e) => [e.url, parseName(e.name).title])),
+  );
   let regionsOf = $derived(
     new Map((listing?.entries ?? []).map((e) => [e.url, e.kind === "file" ? parseName(e.name).regions : []])),
   );
+  /** Number of different games (titles) among some entries. */
+  const gamesIn = (entries: Entry[]) => new Set(entries.filter((e) => e.kind === "file").map((e) => titleOf.get(e.url))).size;
+
+  // ---- one card per game ----
+  // Files with the same title (regions, revisions, demos) show as one game.
+  // Its card stands for the best version (see versions.ts); the details
+  // window lists them all.
+
+  /** Regions to prefer: the ones picked in the region filter, then the device's. */
+  let prefs = $derived(preferredRegions(regionSel));
+  /** Every version of each title on this listing, best first. */
+  let versionsByTitle = $derived.by(() => {
+    const m = new Map<string, Entry[]>();
+    for (const e of listing?.entries ?? []) {
+      if (e.kind !== "file") continue;
+      const t = titleOf.get(e.url)!;
+      const list = m.get(t);
+      if (list) list.push(e);
+      else m.set(t, [e]);
+    }
+    for (const list of m.values()) if (list.length > 1) list.sort((a, b) => compareVersions(a, b, prefs));
+    return m;
+  });
+  function versionsOf(title: string): Entry[] {
+    return versionsByTitle.get(title) ?? [];
+  }
 
   /** Every region in this listing, most common first. */
   let allRegions = $derived.by(() => {
@@ -444,13 +489,13 @@
     if (!art) return listing.entries;
     return listing.entries.filter((e) => e.kind === "folder" || art.has(parseName(e.name).title));
   });
-  let hiddenNoArt = $derived((listing?.entries.length ?? 0) - artFiltered.length);
+  let hiddenNoArt = $derived(gamesIn(listing?.entries ?? []) - gamesIn(artFiltered));
 
   /** Minus demos, betas and other extras when "Games only" is on. */
   let gameFiltered = $derived(
     gamesOnly ? artFiltered.filter((e) => e.kind === "folder" || !isExtra(parseName(e.name))) : artFiltered,
   );
-  let hiddenExtras = $derived(artFiltered.length - gameFiltered.length);
+  let hiddenExtras = $derived(gamesIn(artFiltered) - gamesIn(gameFiltered));
 
   let textMatched = $derived.by(() => {
     const words = query.toLowerCase().split(/\s+/).filter(Boolean);
@@ -460,11 +505,17 @@
     });
   });
 
-  /** Region counts within the current text filter. */
+  /** Games in each region within the current text filter. */
   let regionCounts = $derived.by(() => {
-    const counts = new Map<string, number>();
-    for (const e of textMatched) for (const r of regionsOf.get(e.url) ?? []) counts.set(r, (counts.get(r) ?? 0) + 1);
-    return counts;
+    const titles = new Map<string, Set<string>>();
+    for (const e of textMatched) {
+      for (const r of regionsOf.get(e.url) ?? []) {
+        const set = titles.get(r) ?? new Set<string>();
+        set.add(titleOf.get(e.url)!);
+        titles.set(r, set);
+      }
+    }
+    return new Map([...titles].map(([r, set]) => [r, set.size]));
   });
 
   function toggleRegion(r: string) {
@@ -473,14 +524,34 @@
   }
 
   let filtered = $derived.by(() => {
-    const list = regionSel.size
+    const matched = regionSel.size
       ? textMatched.filter((e) => e.kind === "folder" || (regionsOf.get(e.url) ?? []).some((r) => regionSel.has(r)))
-      : [...textMatched];
+      : textMatched;
+    // One entry per game: its best version among the ones that match.
+    const best = new Map<string, Entry>();
+    const list: Entry[] = [];
+    for (const e of matched) {
+      if (e.kind === "folder") {
+        list.push(e);
+        continue;
+      }
+      const t = titleOf.get(e.url)!;
+      const cur = best.get(t);
+      if (!cur || compareVersions(e, cur, prefs) < 0) best.set(t, e);
+    }
+    list.push(...best.values());
     const dir = sortDesc ? -1 : 1;
+    const rating = (e: Entry) => sortScores.get(titleOf.get(e.url)!);
     return list.sort((a, b) => {
       if (a.kind !== b.kind) return a.kind === "folder" ? -1 : 1;
       if (sortBy === "size") return (a.sizeBytes - b.sizeBytes) * dir;
-      return a.name.localeCompare(b.name) * dir;
+      if (sortBy === "rating") {
+        // Unrated games go last either way, in name order.
+        const ra = rating(a), rb = rating(b);
+        if (ra == null || rb == null) return ra != null ? -1 : rb != null ? 1 : a.name.localeCompare(b.name);
+        if (ra !== rb) return (ra - rb) * dir;
+      }
+      return a.name.localeCompare(b.name) * (sortBy === "name" ? dir : 1);
     });
   });
 
@@ -584,20 +655,18 @@
             : null,
         meta: [d?.released?.slice(0, 4), d?.genres?.slice(0, 2).join(", "), d?.developers?.[0]].filter(Boolean),
         summary: d?.summary ?? "",
-        versions: listing.entries
-          .filter((e) => e.kind === "file" && parseName(e.name).title === info.title)
-          .map((e) => {
-            const p = parseName(e.name);
-            const job = jobs.find((j) => j.romUrl === e.url && !["failed", "cancelled"].includes(j.state));
-            const status = have[fileStem(e.name)] || job?.state === "done" ? "have" : queued.has(e.url) ? "queued" : "none";
-            return {
-              url: e.url,
-              label: p.regions.join(", ") || "Version",
-              sub: [...p.tags.filter((t) => t !== p.regions.join(", ")), e.size].join(" · "),
-              status,
-              progress: status === "queued" ? jobProgress(job) : null,
-            };
-          }),
+        versions: versionsOf(info.title).map((e) => {
+          const p = parseName(e.name);
+          const job = jobs.find((j) => j.romUrl === e.url && !["failed", "cancelled"].includes(j.state));
+          const status = have[fileStem(e.name)] || job?.state === "done" ? "have" : queued.has(e.url) ? "queued" : "none";
+          return {
+            url: e.url,
+            label: p.regions.join(", ") || "Version",
+            sub: [...p.tags.filter((t) => t !== p.regions.join(", ")), e.size].join(" · "),
+            status,
+            progress: status === "queued" ? jobProgress(job) : null,
+          };
+        }),
       };
     const active = jobs
       .filter((j) => !["done", "failed", "cancelled"].includes(j.state))
@@ -706,8 +775,47 @@
       setTimeout(() => justDone.delete(j.romUrl), 1600);
     }
   });
+  // A card shows its game's state across all versions: downloaded, queued or
+  // downloading if any version is.
+  /** Each version's URL -> the URL of the card it's shown under. */
+  let cardOf = $derived.by(() => {
+    const m = new Map<string, string>();
+    for (const e of filtered) {
+      if (e.kind !== "file") continue;
+      for (const v of versionsOf(titleOf.get(e.url)!)) m.set(v.url, e.url);
+    }
+    return m;
+  });
+  function toCards(urls: Iterable<string>): Set<string> {
+    const out = new Set<string>();
+    for (const u of urls) {
+      const card = cardOf.get(u);
+      if (card) out.add(card);
+    }
+    return out;
+  }
+  let cardDownloaded = $derived(toCards(downloadedUrls));
+  let cardQueued = $derived(toCards(queued));
+  let cardJustDone = $derived(toCards(justDone));
+  let cardProgress = $derived(
+    new Map([...progressByUrl].flatMap(([u, p]) => (cardOf.has(u) ? [[cardOf.get(u)!, p] as const] : []))),
+  );
+  /** Each card's IGDB [rating, review count]. */
+  let cardRatings = $derived(
+    new Map(
+      filtered.flatMap((e) => {
+        const r = e.kind === "file" ? ratings[titleOf.get(e.url)!] : undefined;
+        return r ? [[e.url, r] as const] : [];
+      }),
+    ),
+  );
+  /** How many versions each card's game has. */
+  let versionCounts = $derived(
+    new Map(filtered.filter((e) => e.kind === "file").map((e) => [e.url, versionsOf(titleOf.get(e.url)!).length])),
+  );
+
   let totalBytes = $derived(listing?.entries.reduce((s, e) => s + (e.kind === "file" ? e.sizeBytes : 0), 0) ?? 0);
-  let fileCount = $derived(listing?.entries.filter((e) => e.kind === "file").length ?? 0);
+  let gameCount = $derived(versionsByTitle.size);
 
   async function load(url: string) {
     loading = true;
@@ -755,11 +863,11 @@
     }
   }
 
-  function setSort(key: "name" | "size") {
+  function setSort(key: SortKey) {
     if (sortBy === key) sortDesc = !sortDesc;
     else {
       sortBy = key;
-      sortDesc = key === "size";
+      sortDesc = key !== "name"; // biggest and best-rated first
     }
   }
 
@@ -955,11 +1063,11 @@
             <div class="eyebrow">{currentConsole?.group ?? listing.crumbs.at(-2)?.name ?? "Minerva"}</div>
             <h1>{currentConsole?.name ?? listing.crumbs.at(-1)?.name ?? "Browse"}</h1>
             <div class="stats">
-              {#if fileCount}
-                <div><b>{fileCount.toLocaleString()}</b><span>files</span></div>
+              {#if gameCount}
+                <div><b>{gameCount.toLocaleString()}</b><span>games</span></div>
                 <div><b>{formatBytes(totalBytes)}</b><span>total</span></div>
               {/if}
-              {#if folderCount && !fileCount}
+              {#if folderCount && !gameCount}
                 <div><b>{folderCount}</b><span>folders</span></div>
               {/if}
             </div>
@@ -1059,12 +1167,15 @@
           <button class="sort" onclick={() => setSort("name")}>
             Name {sortBy === "name" ? (sortDesc ? "↓" : "↑") : ""}
             <span class="count">
-              {visibleFiles.length.toLocaleString()} files{folderCount ? `, ${folderCount} folders` : ""}{hiddenNoArt
+              {visibleFiles.length.toLocaleString()} {visibleFiles.length === 1 ? "game" : "games"}{folderCount ? `, ${folderCount} folders` : ""}{hiddenNoArt
                 ? ` · ${hiddenNoArt.toLocaleString()} without art hidden`
                 : ""}{hiddenExtras
                 ? ` · ${hiddenExtras.toLocaleString()} demos & betas hidden`
                 : ""}
             </span>
+          </button>
+          <button class="sort right" title="IGDB rating" onclick={() => setSort("rating")}>
+            Rating {sortBy === "rating" ? (sortDesc ? "↓" : "↑") : ""}
           </button>
           <button class="sort right" onclick={() => setSort("size")}>
             Size {sortBy === "size" ? (sortDesc ? "↓" : "↑") : ""}
@@ -1076,30 +1187,34 @@
           <Skeleton {view} />
         {:else if view === "grid"}
           <GameGrid
-            progress={progressByUrl}
-            {justDone}
+            progress={cardProgress}
+            justDone={cardJustDone}
+            {versionCounts}
+            ratings={cardRatings}
             introKey={listing.url}
-            downloaded={downloadedUrls}
+            downloaded={cardDownloaded}
             bind:cols={gridCols}
             {cursor}
             entries={filtered}
             slug={listingSlug(listing.url)}
             {selected}
-            {queued}
+            queued={cardQueued}
             onOpenFolder={load}
             onDownload={(e) => download([e])}
             onOpen={tapGame}
           />
         {:else}
           <GameList
-            progress={progressByUrl}
-            {justDone}
+            progress={cardProgress}
+            justDone={cardJustDone}
+            {versionCounts}
+            ratings={cardRatings}
             introKey={listing.url}
-            downloaded={downloadedUrls}
+            downloaded={cardDownloaded}
             {cursor}
             entries={filtered}
             {selected}
-            {queued}
+            queued={cardQueued}
             onOpenFolder={load}
             onDownload={(e) => download([e])}
             onOpen={tapGame}
@@ -1893,7 +2008,7 @@
   }
   .colhead {
     display: grid;
-    grid-template-columns: 30px 1fr 84px 40px;
+    grid-template-columns: 30px 1fr 62px 84px 40px;
     gap: 8px;
     align-items: center;
     height: 28px;

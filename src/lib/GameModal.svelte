@@ -185,7 +185,11 @@
         </div>
         {#if details?.genres?.length || details?.rating}
           <div class="chips">
-            {#if details?.rating}<span class="rating" title="IGDB rating">{details.rating}</span>{/if}
+            {#if details?.rating}<span
+                class="rating"
+                title={details.ratingCount ? `IGDB rating, from ${details.ratingCount} reviews` : "IGDB rating"}
+                >{details.rating}</span
+              >{/if}
             {#each details?.genres ?? [] as g}<span class="chip">{g}</span>{/each}
           </div>
         {/if}

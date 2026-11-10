@@ -27,6 +27,10 @@
     downloaded?: Set<string>;
     /** Download progress (0..1) of games being fetched right now. */
     progress?: Map<string, number>;
+    /** Number of versions of each card's game (regions, revisions), by URL. */
+    versionCounts?: Map<string, number>;
+    /** IGDB [rating 0-100, review count] of each rated card's game, by URL. */
+    ratings?: Map<string, readonly [number, number]>;
     /** Games that have just finished, for a brief celebration. */
     justDone?: Set<string>;
     /** Changes when a new console opens, to play the entrance animation. */
@@ -45,6 +49,8 @@
     downloaded = new Set(),
     progress = new Map(),
     justDone = new Set(),
+    versionCounts = new Map(),
+    ratings = new Map(),
     introKey = "",
   }: Props = $props();
 
@@ -230,6 +236,10 @@
             >
               <Icon name="check" size={13} />
             </button>
+            {#if ratings.get(e.url)}
+              {@const [r, count] = ratings.get(e.url)!}
+              <span class="score" title="IGDB rating, from {count} {count === 1 ? 'review' : 'reviews'}">{r}</span>
+            {/if}
             {#if n.regions.length}
               <span class="flags">
                 {#each n.regions as r}<Flag region={r} height={11} />{/each}
@@ -259,7 +269,11 @@
           <div class="caption">
             <div class="name">{n.title}</div>
             <div class="sub">
-              {e.size}{#each n.tags.filter((t) => t !== n.regions.join(", ")) as t}<span>· {t}</span>{/each}
+              {#if (versionCounts.get(e.url) ?? 1) > 1}
+                {versionCounts.get(e.url)} versions<span>· {e.size}</span>
+              {:else}
+                {e.size}{#each n.tags.filter((t) => t !== n.regions.join(", ")) as t}<span>· {t}</span>{/each}
+              {/if}
             </div>
           </div>
         </div>
@@ -407,6 +421,17 @@
     right: 8px;
     display: flex;
     gap: 3px;
+  }
+  .score {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    padding: 2px 7px;
+    border-radius: 9px;
+    background: rgb(0 0 0 / 0.62);
+    color: #fff;
+    font: 600 11px var(--mono);
+    backdrop-filter: blur(4px);
   }
   .dl {
     position: absolute;
