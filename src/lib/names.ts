@@ -110,6 +110,23 @@ export function matchScore(query: string, candidate: string): number {
 export const MATCH_THRESHOLD = 0.85;
 
 /**
+ * matchScore for IGDB, whose search is already limited to the right platform:
+ * also accepts its name adding a word or two to all of ours, as with
+ * "007 - Tomorrow Never Dies" and "James Bond 007: Tomorrow Never Dies"
+ * (0.80 otherwise). Only for titles of 3+ words, so "Halo 3" still isn't
+ * "Halo 3: ODST". Must match `igdb_match_score` in src-tauri/src/covers.rs.
+ */
+export function igdbMatchScore(query: string, candidate: string): number {
+  const score = matchScore(query, candidate);
+  if (score >= MATCH_THRESHOLD || score === 0) return score;
+  const a = new Set(words(query));
+  const b = new Set(words(candidate));
+  const extra = [...b].filter((w) => !a.has(w)).length;
+  const contained = [...a].every((w) => b.has(w));
+  return contained && a.size >= 3 && extra <= 2 ? MATCH_THRESHOLD : score;
+}
+
+/**
  * Which details bucket (00-ff) a title lives in: low byte of the FNV-1a hash
  * of its UTF-8 bytes. Must match `title_bucket` in src-tauri/src/data.rs.
  */
@@ -122,8 +139,15 @@ export function titleBucket(title: string): string {
   return (h & 0xff).toString(16).padStart(2, "0");
 }
 
-/** Expands a compact cover reference from covers.json into an image URL. */
+/** Expands a compact cover reference from covers.json into an image URL.
+ *  Must match `cover_url` in src-tauri/src/data.rs. */
 export function coverUrl(ref: string): string {
+  if (ref.startsWith("l:")) {
+    const i = ref.indexOf("/");
+    const system = ref.slice(2, i);
+    const file = ref.slice(i + 1);
+    return `https://thumbnails.libretro.com/${encodeURIComponent(system)}/Named_Boxarts/${encodeURIComponent(file)}.png`;
+  }
   if (ref.startsWith("s:")) return `https://cdn2.steamgriddb.com/${ref.slice(2)}`;
   if (ref.startsWith("i:")) return `https://images.igdb.com/igdb/image/upload/t_cover_big/${ref.slice(2)}.jpg`;
   return ref; // a full URL (e.g. a hand-written override)

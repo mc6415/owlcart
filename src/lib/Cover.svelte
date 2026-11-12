@@ -47,7 +47,15 @@
   }
 
   let hue = $derived(hash(title) % 360);
-  let letter = $derived((title.match(/[A-Za-z0-9]/)?.[0] ?? "?").toUpperCase());
+  // Up to two initials, skipping little words: "The Legend of Zelda" -> "LZ";
+  // a leading number stays whole: "007 Shitou" -> "007", "3.15 Firmware" -> "3.15".
+  // (The second screen does the same in second-screen.html.)
+  let initials = $derived.by(() => {
+    const words = title.split(/[\s\-:]+/).filter((w) => /[A-Za-z0-9]/.test(w) && !/^(the|a|an|of)$/i.test(w));
+    if (/^\d[\d.]{0,4}$/.test(words[0] ?? "")) return words[0];
+    const first = (w: string) => w.match(/[A-Za-z0-9]/)?.[0] ?? "";
+    return (words.length ? words : [title]).slice(0, 2).map(first).join("").toUpperCase() || "?";
+  });
 </script>
 
 <div class="wrap">
@@ -64,7 +72,8 @@
         <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
       </svg>
     {:else}
-      <span class="letter">{letter}</span>
+      <span class="frame"></span>
+      <span class="initials">{initials}</span>
       <span class="title">{title}</span>
     {/if}
     {#if src}
@@ -104,8 +113,25 @@
     transition: opacity 0.3s;
     pointer-events: none;
   }
-  :global(.card:hover) .glow {
+  :global(html:not(.android) .card:hover) .glow {
     opacity: 0.7;
+  }
+  /* The keyboard / D-pad highlight glows in the cover's own colours, gently
+     breathing so it's easy to spot. */
+  :global(.card.cursor) .glow {
+    opacity: 0.8;
+    animation: breathe 2.4s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    50% {
+      opacity: 0.45;
+      transform: scale(0.96);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :global(.card.cursor) .glow {
+      animation: none;
+    }
   }
   .cover {
     position: relative;
@@ -144,25 +170,35 @@
   img.loaded {
     opacity: 1;
   }
-  .letter {
+  /* No art: the initials and title in a thin inset frame, like a box. */
+  .frame {
     position: absolute;
-    right: -4%;
-    bottom: -14%;
-    font-size: 9em;
+    inset: 7px;
+    border: 1.5px solid rgb(255 255 255 / 0.18);
+    border-radius: 6px;
+  }
+  .initials {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 30%;
+    text-align: center;
+    font-size: 38px;
     font-weight: 800;
     line-height: 1;
-    opacity: 0.14;
-    letter-spacing: -0.05em;
+    letter-spacing: -0.04em;
+    text-shadow: 0 2px 12px rgb(0 0 0 / 0.3);
   }
   .title {
     position: absolute;
-    left: 10px;
-    right: 10px;
-    top: 10px;
-    font-size: 12px;
+    left: 14px;
+    right: 14px;
+    top: calc(30% + 48px);
+    text-align: center;
+    font-size: 11px;
     font-weight: 600;
     line-height: 1.25;
-    opacity: 0.85;
+    opacity: 0.8;
     display: -webkit-box;
     -webkit-line-clamp: 4;
     line-clamp: 4;

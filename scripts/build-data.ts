@@ -5,6 +5,7 @@
 //   npm run data -- [console...] [--retry-missing] [--limit N] [--verbose]
 //                   [--no-covers] [--no-details] [--out data]
 //   npm run data -- [console...] --refresh-ratings
+//   npm run data -- [console...] --libretro
 //
 // With no console named, updates every console that already has data. Name
 // consoles (their ES-DE folder, or part of the slug or name, e.g.
@@ -12,11 +13,14 @@
 // add them, or `all` for everything in consoles.json.
 // --refresh-ratings only re-reads the IGDB rating and review count of games
 // already matched (500 per request), without looking anything else up.
+// Covers come from libretro's thumbnails first (right platform, matched by
+// name; see libretro.ts), then SteamGridDB, then IGDB. --libretro also
+// switches existing covers to libretro's wherever it has one.
 // Keys: .steamgriddb-key and .igdb-credentials in the project root (git-ignored).
 //
 // Output layout (host the folder as-is):
 //   data/index.json                      consoles, update times, counts
-//   data/<slug>/covers.json              title -> cover ref ("s:..." SteamGridDB, "i:..." IGDB) or null
+//   data/<slug>/covers.json              title -> cover ref ("l:..." libretro, "s:..." SteamGridDB, "i:..." IGDB) or null
 //   data/<slug>/games.json               title -> [IGDB id] or [IGDB id, rating 0-100, review count], matched
 //                                        titles only: lets the app group and sort a whole console at once
 //   data/<slug>/details/<00-ff>.json     title -> IGDB details or null, bucketed by titleBucket()
@@ -24,10 +28,20 @@
 import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { listingSlug, titleBucket } from "../src/lib/names.ts";
-import { arg, sleep, listingTitles } from "./common.ts";
+import { isExtra, listingSlug, parseName, titleBucket } from "../src/lib/names.ts";
+import { arg, sleep, listingNames } from "./common.ts";
 import { sgdbKey, sgdbCover } from "./sgdb.ts";
-import { igdbLogin, igdbPlatform, igdbDetails, igdbRatings, type GameDetails, type Igdb } from "./igdb.ts";
+import { libretroIndex, libretroCover } from "./libretro.ts";
+import {
+  igdbLogin,
+  igdbPlatform,
+  igdbDetails,
+  igdbDetailsMany,
+  igdbRatings,
+  IGDB_BATCH,
+  type GameDetails,
+  type Igdb,
+} from "./igdb.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const flag = (name: string) => process.argv.includes(name);
@@ -42,6 +56,8 @@ interface ConsoleConfig {
   listing: string;
   /** IGDB platform slug, needed to build game details. */
   igdb?: string;
+  /** libretro thumbnails folder, e.g. "Microsoft - Xbox", for box art. */
+  libretro?: string;
 }
 
 interface IndexEntry {
@@ -104,20 +120,49 @@ async function buildConsole(
     Object.assign(details, await readJson(join(detailsDir, f), {}));
   }
 
-  const titles = await listingTitles(cfg.listing);
+  const names = await listingNames(cfg.listing);
+  const titles = [...new Set(names.map((n) => parseName(n).title))];
+  // Titles that are only demos, betas, prototypes, BIOS files and the like:
+  // IGDB almost never has them, so retries skip them.
+  const real = new Set(names.map(parseName).filter((p) => !isExtra(p)).map((p) => p.title));
   const limit = Number(arg("--limit") ?? Infinity);
   const retry = flag("--retry-missing");
-  const detailsTodo = keys.igdb && cfg.igdb
-    ? titles.filter((t) => !(t in details) || (retry && details[t] === null)).slice(0, limit)
-    : [];
+  const detailsTodo = keys.igdb && cfg.igdb ? titles.filter((t) => !(t in details)).slice(0, limit) : [];
+  // Retries go in batches (igdbDetailsMany), which is much faster.
+  const retryTodo =
+    keys.igdb && cfg.igdb && retry
+      ? titles.filter((t) => details[t] === null && real.has(t)).slice(0, limit)
+      : [];
+  // libretro first: no key needed, one request for the whole console.
+  let fromLibretro = 0;
+  if (cfg.libretro && !flag("--no-covers")) {
+    try {
+      const index = await libretroIndex(cfg.libretro);
+      const all = flag("--libretro");
+      for (const t of titles) {
+        const c = covers[t];
+        // New titles and ones with no cover or only IGDB's; with --libretro, any.
+        if (t in covers && c && !c.startsWith("i:") && !(all && !c.startsWith("l:"))) continue;
+        const ref = libretroCover(index, t);
+        if (ref && ref !== c) {
+          covers[t] = ref;
+          fromLibretro++;
+        }
+      }
+    } catch (e) {
+      console.warn(`  [libretro] ${e}`);
+    }
+  }
   const coversTodo = keys.sgdb
     ? titles
         .filter((t) => !(t in covers) || (retry && (covers[t] === null || covers[t]?.startsWith("i:"))))
         .slice(0, limit)
     : [];
-  console.log(`\n${name} (${slug}): ${titles.length} titles; ${detailsTodo.length} details and ${coversTodo.length} covers to look up`);
+  console.log(
+    `\n${name} (${slug}): ${titles.length} titles; ${fromLibretro} covers from libretro; ${detailsTodo.length} details, ${retryTodo.length} retries and ${coversTodo.length} covers to look up`,
+  );
 
-  let changed = false;
+  let changed = fromLibretro > 0;
   const save = async () => {
     // Use IGDB's cover where SteamGridDB has none.
     for (const t of titles) {
@@ -149,10 +194,12 @@ async function buildConsole(
   };
 
   let done = 0;
-  const total = detailsTodo.length + coversTodo.length;
-  const tick = async () => {
+  const total = detailsTodo.length + retryTodo.length + coversTodo.length;
+  const tick = async (n = 1) => {
     changed = true;
-    if (++done % 50 === 0) {
+    const before = done;
+    done += n;
+    if (Math.floor(done / 50) > Math.floor(before / 50)) {
       console.log(`  ${done}/${total}`);
       await save();
     }
@@ -160,18 +207,32 @@ async function buildConsole(
 
   // IGDB and SteamGridDB are separate services, so run both at once.
   const tasks: Promise<void>[] = [];
-  if (keys.igdb && cfg.igdb && detailsTodo.length) {
+  if (keys.igdb && cfg.igdb && (detailsTodo.length || retryTodo.length)) {
     const plat = await igdbPlatform(keys.igdb, cfg.igdb);
-    // IGDB allows 4 requests/second; stay well under.
+    const batches: string[][] = [];
+    for (let i = 0; i < retryTodo.length; i += IGDB_BATCH) batches.push(retryTodo.slice(i, i + IGDB_BATCH));
     tasks.push(
-      pool(detailsTodo, 2, 600, async (t) => {
-        try {
-          details[t] = await igdbDetails(keys.igdb!, plat.id, t, verbose);
-        } catch (e) {
-          console.warn(`  [igdb] failed: ${t}: ${e}`);
-        }
-        await tick();
-      }),
+      (async () => {
+        // One batch at a time: a batch is already 10 queries, IGDB's limit
+        // for queries in flight at once.
+        await pool(batches, 1, 250, async (batch) => {
+          try {
+            for (const [t, d] of await igdbDetailsMany(keys.igdb!, plat.id, batch, verbose)) details[t] = d;
+          } catch (e) {
+            console.warn(`  [igdb] batch failed: ${batch.join(", ")}: ${e}`);
+          }
+          await tick(batch.length);
+        });
+        // IGDB allows 4 requests/second; stay well under.
+        await pool(detailsTodo, 2, 600, async (t) => {
+          try {
+            details[t] = await igdbDetails(keys.igdb!, plat.id, t, verbose);
+          } catch (e) {
+            console.warn(`  [igdb] failed: ${t}: ${e}`);
+          }
+          await tick();
+        });
+      })(),
     );
   }
   if (keys.sgdb && coversTodo.length) {

@@ -6,10 +6,10 @@
    "folder": "atari2600",
    "listing": "https://minerva-archive.org/browse/No-Intro/Atari%20-%20Atari%202600/",
    "igdb": "atari2600",
-   "updated": "2026-11-10T20:21:08.116Z",
+   "updated": "2026-11-12T18:11:28.924Z",
    "titles": 674,
-   "covers": 591,
-   "details": 585
+   "covers": 652,
+   "details": 606
   },
   "no-intro-atari-atari-jaguar-j64": {
    "name": "Jaguar",
@@ -17,10 +17,10 @@
    "folder": "atarijaguar",
    "listing": "https://minerva-archive.org/browse/No-Intro/Atari%20-%20Atari%20Jaguar%20%28J64%29/",
    "igdb": "jaguar",
-   "updated": "2026-11-10T20:21:12.119Z",
+   "updated": "2026-11-12T18:11:37.862Z",
    "titles": 70,
-   "covers": 56,
-   "details": 53
+   "covers": 60,
+   "details": 54
   },
   "no-intro-atari-atari-lynx-lnx": {
    "name": "Lynx",
@@ -28,10 +28,10 @@
    "folder": "atarilynx",
    "listing": "https://minerva-archive.org/browse/No-Intro/Atari%20-%20Atari%20Lynx%20%28LNX%29/",
    "igdb": "lynx",
-   "updated": "2026-11-10T20:21:10.126Z",
+   "updated": "2026-11-12T18:11:36.538Z",
    "titles": 138,
-   "covers": 111,
-   "details": 80
+   "covers": 113,
+   "details": 81
   },
   "no-intro-bandai-wonderswan": {
    "name": "WonderSwan",
@@ -39,10 +39,10 @@
    "folder": "wonderswan",
    "listing": "https://minerva-archive.org/browse/No-Intro/Bandai%20-%20WonderSwan/",
    "igdb": "wonderswan",
-   "updated": "2026-11-10T20:21:16.484Z",
+   "updated": "2026-11-12T18:11:54.414Z",
    "titles": 232,
-   "covers": 100,
-   "details": 95
+   "covers": 115,
+   "details": 98
   },
   "no-intro-bandai-wonderswan-color": {
    "name": "WonderSwan Color",
@@ -50,10 +50,10 @@
    "folder": "wonderswancolor",
    "listing": "https://minerva-archive.org/browse/No-Intro/Bandai%20-%20WonderSwan%20Color/",
    "igdb": "wonderswan-color",
-   "updated": "2026-11-10T20:21:18.752Z",
+   "updated": "2026-11-12T18:12:08.976Z",
    "titles": 221,
-   "covers": 79,
-   "details": 69
+   "covers": 99,
+   "details": 72
   },
   "no-intro-coleco-colecovision": {
    "name": "ColecoVision",
@@ -61,10 +61,10 @@
    "folder": "colecovision",
    "listing": "https://minerva-archive.org/browse/No-Intro/Coleco%20-%20ColecoVision/",
    "igdb": "colecovision",
-   "updated": "2026-11-10T20:21:24.804Z",
+   "updated": "2026-11-12T18:16:08.781Z",
    "titles": 175,
-   "covers": 153,
-   "details": 148
+   "covers": 165,
+   "details": 151
   },
   "no-intro-gce-vectrex": {
    "name": "Vectrex",
@@ -72,10 +72,10 @@
    "folder": "vectrex",
    "listing": "https://minerva-archive.org/browse/No-Intro/GCE%20-%20Vectrex/",
    "igdb": "vectrex",
-   "updated": "2026-11-10T20:21:28.272Z",
+   "updated": "2026-11-12T18:16:15.362Z",
    "titles": 42,
-   "covers": 33,
-   "details": 31
+   "covers": 41,
+   "details": 32
   },
   "no-intro-mattel-intellivision": {
    "name": "Intellivision",
@@ -83,10 +83,10 @@
    "folder": "intellivision",
    "listing": "https://minerva-archive.org/browse/No-Intro/Mattel%20-%20Intellivision/",
    "igdb": "intellivision",
-   "updated": "2026-11-10T20:21:26.560Z",
+   "updated": "2026-11-12T18:16:13.853Z",
    "titles": 188,
-   "covers": 146,
-   "details": 143
+   "covers": 157,
+   "details": 145
   },
   "no-intro-nec-pc-engine-turbografx-16": {
    "name": "PC Engine / TurboGrafx-16",
@@ -94,10 +94,10 @@
    "folder": "pcengine",
    "listing": "https://minerva-archive.org/browse/No-Intro/NEC%20-%20PC%20Engine%20-%20TurboGrafx-16/",
    "igdb": "turbografx16--1",
-   "updated": "2026-11-10T20:20:56.449Z",
+   "updated": "2026-11-12T18:10:41.768Z",
    "titles": 398,
-   "covers": 312,
-   "details": 309
+   "covers": 380,
+   "details": 322
   },
   "no-intro-nintendo-family-computer-disk-system-fds": {
    "name": "Famicom Disk System",
@@ -105,10 +105,10 @@
    "folder": "fds",
    "listing": "https://minerva-archive.org/browse/No-Intro/Nintendo%20-%20Family%20Computer%20Disk%20System%20%28FDS%29/",
    "igdb": "fds",
-   "updated": "2026-11-10T20:18:13.684Z",
+   "updated": "2026-11-12T17:32:00.307Z",
    "titles": 300,
-   "covers": 175,
-   "details": 168
+   "covers": 258,
+   "details": 177
   },
   "no-intro-nintendo-game-boy": {
    "name": "Game Boy",
@@ -116,10 +116,10 @@
    "folder": "gb",
    "listing": "https://minerva-archive.org/browse/No-Intro/Nintendo%20-%20Game%20Boy/",
    "igdb": "gb",
-   "updated": "2026-11-10T20:18:27.518Z",
+   "updated": "2026-11-12T17:36:03.468Z",
    "titles": 1614,
-   "covers": 1118,
-   "details": 1051
+   "covers": 1425,
+   "details": 1104
   },
   "no-intro-nintendo-game-boy-advance": {
    "name": "Game Boy Advance",
@@ -127,10 +127,10 @@
    "folder": "gba",
    "listing": "https://minerva-archive.org/browse/No-Intro/Nintendo%20-%20Game%20Boy%20Advance/",
    "igdb": "gba",
-   "updated": "2026-11-10T20:18:40.118Z",
+   "updated": "2026-11-12T17:39:06.804Z",
    "titles": 2228,
-   "covers": 1545,
-   "details": 1465
+   "covers": 2149,
+   "details": 1555
   },
   "no-intro-nintendo-game-boy-color": {
    "name": "Game Boy Color",
@@ -138,10 +138,10 @@
    "folder": "gbc",
    "listing": "https://minerva-archive.org/browse/No-Intro/Nintendo%20-%20Game%20Boy%20Color/",
    "igdb": "gbc",
-   "updated": "2026-11-10T20:18:32.395Z",
+   "updated": "2026-11-12T17:37:32.650Z",
    "titles": 1708,
-   "covers": 1042,
-   "details": 941
+   "covers": 1283,
+   "details": 997
   },
   "no-intro-nintendo-nintendo-3ds-decrypted": {
    "name": "Nintendo 3DS",
@@ -149,10 +149,10 @@
    "folder": "n3ds",
    "listing": "https://minerva-archive.org/browse/No-Intro/Nintendo%20-%20Nintendo%203DS%20%28Decrypted%29/",
    "igdb": "3ds",
-   "updated": "2026-11-10T20:19:12.718Z",
+   "updated": "2026-11-12T17:47:42.805Z",
    "titles": 1314,
-   "covers": 868,
-   "details": 835
+   "covers": 1254,
+   "details": 897
   },
   "no-intro-nintendo-nintendo-64-bigendian": {
    "name": "Nintendo 64",
@@ -160,10 +160,10 @@
    "folder": "n64",
    "listing": "https://minerva-archive.org/browse/No-Intro/Nintendo%20-%20Nintendo%2064%20%28BigEndian%29/",
    "igdb": "n64",
-   "updated": "2026-11-10T20:18:22.696Z",
+   "updated": "2026-11-12T17:35:02.703Z",
    "titles": 549,
-   "covers": 459,
-   "details": 441
+   "covers": 522,
+   "details": 488
   },
   "no-intro-nintendo-nintendo-ds-decrypted": {
    "name": "Nintendo DS",
@@ -171,10 +171,10 @@
    "folder": "nds",
    "listing": "https://minerva-archive.org/browse/No-Intro/Nintendo%20-%20Nintendo%20DS%20%28Decrypted%29/",
    "igdb": "nds",
-   "updated": "2026-11-10T20:18:59.436Z",
+   "updated": "2026-11-12T17:45:20.116Z",
    "titles": 5201,
-   "covers": 2992,
-   "details": 2675
+   "covers": 4997,
+   "details": 2879
   },
   "no-intro-nintendo-nintendo-entertainment-system-headered": {
    "name": "NES",
@@ -182,10 +182,10 @@
    "folder": "nes",
    "listing": "https://minerva-archive.org/browse/No-Intro/Nintendo%20-%20Nintendo%20Entertainment%20System%20%28Headered%29/",
    "igdb": "nes",
-   "updated": "2026-11-10T20:18:11.629Z",
+   "updated": "2026-11-12T17:31:43.819Z",
    "titles": 3900,
-   "covers": 1745,
-   "details": 1243
+   "covers": 2388,
+   "details": 1294
   },
   "no-intro-nintendo-super-nintendo-entertainment-system": {
    "name": "SNES",
@@ -193,10 +193,10 @@
    "folder": "snes",
    "listing": "https://minerva-archive.org/browse/No-Intro/Nintendo%20-%20Super%20Nintendo%20Entertainment%20System/",
    "igdb": "snes",
-   "updated": "2026-11-10T20:18:18.584Z",
+   "updated": "2026-11-12T17:34:48.102Z",
    "titles": 2483,
-   "covers": 1379,
-   "details": 1095
+   "covers": 2333,
+   "details": 1195
   },
   "no-intro-nintendo-virtual-boy": {
    "name": "Virtual Boy",
@@ -204,10 +204,10 @@
    "folder": "virtualboy",
    "listing": "https://minerva-archive.org/browse/No-Intro/Nintendo%20-%20Virtual%20Boy/",
    "igdb": "virtualboy",
-   "updated": "2026-11-10T19:09:49.634Z",
+   "updated": "2026-11-12T17:34:50.110Z",
    "titles": 57,
-   "covers": 37,
-   "details": 37
+   "covers": 41,
+   "details": 38
   },
   "no-intro-sega-32x": {
    "name": "32X",
@@ -215,9 +215,9 @@
    "folder": "sega32x",
    "listing": "https://minerva-archive.org/browse/No-Intro/Sega%20-%2032X/",
    "igdb": "sega32",
-   "updated": "2026-11-10T20:19:32.910Z",
+   "updated": "2026-11-12T17:49:39.625Z",
    "titles": 57,
-   "covers": 40,
+   "covers": 52,
    "details": 38
   },
   "no-intro-sega-game-gear": {
@@ -226,10 +226,10 @@
    "folder": "gamegear",
    "listing": "https://minerva-archive.org/browse/No-Intro/Sega%20-%20Game%20Gear/",
    "igdb": "gamegear",
-   "updated": "2026-11-10T20:19:29.088Z",
+   "updated": "2026-11-12T17:49:29.800Z",
    "titles": 477,
-   "covers": 389,
-   "details": 373
+   "covers": 435,
+   "details": 385
   },
   "no-intro-sega-master-system-mark-iii": {
    "name": "Master System",
@@ -237,10 +237,10 @@
    "folder": "mastersystem",
    "listing": "https://minerva-archive.org/browse/No-Intro/Sega%20-%20Master%20System%20-%20Mark%20III/",
    "igdb": "sms",
-   "updated": "2026-11-10T20:19:19.119Z",
+   "updated": "2026-11-12T17:48:29.177Z",
    "titles": 726,
-   "covers": 425,
-   "details": 392
+   "covers": 480,
+   "details": 399
   },
   "no-intro-sega-mega-drive-genesis": {
    "name": "Mega Drive / Genesis",
@@ -248,10 +248,10 @@
    "folder": "megadrive",
    "listing": "https://minerva-archive.org/browse/No-Intro/Sega%20-%20Mega%20Drive%20-%20Genesis/",
    "igdb": "genesis-slash-megadrive",
-   "updated": "2026-11-10T20:19:27.130Z",
+   "updated": "2026-11-12T17:49:17.697Z",
    "titles": 1730,
-   "covers": 1287,
-   "details": 1172
+   "covers": 1433,
+   "details": 1244
   },
   "no-intro-sega-sg-1000": {
    "name": "SG-1000",
@@ -259,10 +259,10 @@
    "folder": "sg-1000",
    "listing": "https://minerva-archive.org/browse/No-Intro/Sega%20-%20SG-1000/",
    "igdb": "sg1000",
-   "updated": "2026-11-10T20:19:17.196Z",
+   "updated": "2026-11-12T17:47:59.969Z",
    "titles": 127,
-   "covers": 91,
-   "details": 88
+   "covers": 105,
+   "details": 89
   },
   "no-intro-snk-neogeo-pocket": {
    "name": "Neo Geo Pocket",
@@ -270,10 +270,10 @@
    "folder": "ngp",
    "listing": "https://minerva-archive.org/browse/No-Intro/SNK%20-%20NeoGeo%20Pocket/",
    "igdb": "neo-geo-pocket",
-   "updated": "2026-11-10T15:59:23.514Z",
+   "updated": "2026-11-12T18:11:06.785Z",
    "titles": 11,
-   "covers": 2,
-   "details": 1
+   "covers": 10,
+   "details": 2
   },
   "no-intro-snk-neogeo-pocket-color": {
    "name": "Neo Geo Pocket Color",
@@ -281,10 +281,10 @@
    "folder": "ngpc",
    "listing": "https://minerva-archive.org/browse/No-Intro/SNK%20-%20NeoGeo%20Pocket%20Color/",
    "igdb": "neo-geo-pocket-color",
-   "updated": "2026-11-10T20:21:01.545Z",
+   "updated": "2026-11-12T18:11:11.343Z",
    "titles": 87,
-   "covers": 64,
-   "details": 63
+   "covers": 80,
+   "details": 71
   },
   "redump-atari-jaguar-cd-interactive-multimedia-system": {
    "name": "Jaguar CD",
@@ -292,7 +292,7 @@
    "folder": "atarijaguarcd",
    "listing": "https://minerva-archive.org/browse/Redump/Atari%20-%20Jaguar%20CD%20Interactive%20Multimedia%20System/",
    "igdb": "atari-jaguar-cd",
-   "updated": "2026-11-10T20:21:14.252Z",
+   "updated": "2026-11-12T18:11:39.175Z",
    "titles": 22,
    "covers": 18,
    "details": 19
@@ -303,10 +303,10 @@
    "folder": "xbox",
    "listing": "https://minerva-archive.org/browse/Redump/Microsoft%20-%20Xbox/",
    "igdb": "xbox",
-   "updated": "2026-11-10T20:20:42.526Z",
+   "updated": "2026-11-12T18:09:07.960Z",
    "titles": 1433,
-   "covers": 1059,
-   "details": 1014
+   "covers": 1115,
+   "details": 1065
   },
   "redump-microsoft-xbox-360": {
    "name": "Xbox 360",
@@ -314,10 +314,10 @@
    "folder": "xbox360",
    "listing": "https://minerva-archive.org/browse/Redump/Microsoft%20-%20Xbox%20360/",
    "igdb": "xbox360",
-   "updated": "2026-11-10T20:20:54.179Z",
+   "updated": "2026-11-12T18:10:29.120Z",
    "titles": 2006,
-   "covers": 1466,
-   "details": 1419
+   "covers": 1515,
+   "details": 1479
   },
   "redump-nec-pc-engine-cd-turbografx-cd": {
    "name": "PC Engine CD / TurboGrafx-CD",
@@ -325,10 +325,10 @@
    "folder": "pcenginecd",
    "listing": "https://minerva-archive.org/browse/Redump/NEC%20-%20PC%20Engine%20CD%20%26%20TurboGrafx%20CD/",
    "igdb": "turbografx-16-slash-pc-engine-cd",
-   "updated": "2026-11-10T20:20:58.520Z",
+   "updated": "2026-11-12T18:11:05.359Z",
    "titles": 463,
-   "covers": 292,
-   "details": 282
+   "covers": 457,
+   "details": 304
   },
   "redump-nintendo-gamecube-nkit-rvz-zstd-19-128k": {
    "name": "GameCube",
@@ -336,10 +336,10 @@
    "folder": "gc",
    "listing": "https://minerva-archive.org/browse/Redump/Nintendo%20-%20GameCube%20-%20NKit%20RVZ%20%5Bzstd-19-128k%5D/",
    "igdb": "ngc",
-   "updated": "2026-11-10T20:18:46.348Z",
+   "updated": "2026-11-12T17:40:04.860Z",
    "titles": 1102,
-   "covers": 679,
-   "details": 640
+   "covers": 906,
+   "details": 702
   },
   "redump-nintendo-wii-nkit-rvz-zstd-19-128k": {
    "name": "Wii",
@@ -347,10 +347,10 @@
    "folder": "wii",
    "listing": "https://minerva-archive.org/browse/Redump/Nintendo%20-%20Wii%20-%20NKit%20RVZ%20%5Bzstd-19-128k%5D/",
    "igdb": "wii",
-   "updated": "2026-11-10T20:19:07.607Z",
+   "updated": "2026-11-12T17:46:43.416Z",
    "titles": 2185,
-   "covers": 1680,
-   "details": 1581
+   "covers": 2108,
+   "details": 1687
   },
   "redump-nintendo-wii-u-wux": {
    "name": "Wii U",
@@ -358,10 +358,10 @@
    "folder": "wiiu",
    "listing": "https://minerva-archive.org/browse/Redump/Nintendo%20-%20Wii%20U%20-%20WUX/",
    "igdb": "wiiu",
-   "updated": "2026-11-10T20:19:14.881Z",
+   "updated": "2026-11-12T17:47:57.194Z",
    "titles": 293,
-   "covers": 203,
-   "details": 191
+   "covers": 249,
+   "details": 199
   },
   "redump-panasonic-3do-interactive-multiplayer": {
    "name": "3DO",
@@ -369,10 +369,10 @@
    "folder": "3do",
    "listing": "https://minerva-archive.org/browse/Redump/Panasonic%20-%203DO%20Interactive%20Multiplayer/",
    "igdb": "3do",
-   "updated": "2026-11-10T20:21:20.553Z",
+   "updated": "2026-11-12T18:12:29.384Z",
    "titles": 407,
-   "covers": 275,
-   "details": 265
+   "covers": 358,
+   "details": 281
   },
   "redump-philips-cd-i": {
    "name": "CD-i",
@@ -380,10 +380,10 @@
    "folder": "cdimono1",
    "listing": "https://minerva-archive.org/browse/Redump/Philips%20-%20CD-i/",
    "igdb": "philips-cdi",
-   "updated": "2026-11-10T20:21:22.800Z",
+   "updated": "2026-11-12T18:16:05.449Z",
    "titles": 1790,
-   "covers": 150,
-   "details": 137
+   "covers": 218,
+   "details": 138
   },
   "redump-sega-dreamcast": {
    "name": "Dreamcast",
@@ -391,10 +391,10 @@
    "folder": "dreamcast",
    "listing": "https://minerva-archive.org/browse/Redump/Sega%20-%20Dreamcast/",
    "igdb": "dc",
-   "updated": "2026-11-10T20:19:43.393Z",
+   "updated": "2026-11-12T17:51:48.851Z",
    "titles": 986,
-   "covers": 604,
-   "details": 561
+   "covers": 840,
+   "details": 616
   },
   "redump-sega-mega-cd-sega-cd": {
    "name": "Mega CD / Sega CD",
@@ -402,10 +402,10 @@
    "folder": "megacd",
    "listing": "https://minerva-archive.org/browse/Redump/Sega%20-%20Mega%20CD%20%26%20Sega%20CD/",
    "igdb": "sega-cd",
-   "updated": "2026-11-10T20:19:31.180Z",
+   "updated": "2026-11-12T17:49:37.409Z",
    "titles": 266,
-   "covers": 219,
-   "details": 212
+   "covers": 259,
+   "details": 221
   },
   "redump-sega-saturn": {
    "name": "Saturn",
@@ -413,10 +413,10 @@
    "folder": "saturn",
    "listing": "https://minerva-archive.org/browse/Redump/Sega%20-%20Saturn/",
    "igdb": "saturn",
-   "updated": "2026-11-10T20:19:38.515Z",
+   "updated": "2026-11-12T17:50:56.832Z",
    "titles": 1402,
-   "covers": 858,
-   "details": 807
+   "covers": 1268,
+   "details": 868
   },
   "redump-snk-neo-geo-cd": {
    "name": "Neo Geo CD",
@@ -424,9 +424,9 @@
    "folder": "neogeocd",
    "listing": "https://minerva-archive.org/browse/Redump/SNK%20-%20Neo%20Geo%20CD/",
    "igdb": "neo-geo-cd",
-   "updated": "2026-11-10T19:10:30.139Z",
+   "updated": "2026-11-12T18:11:18.347Z",
    "titles": 104,
-   "covers": 59,
+   "covers": 100,
    "details": 58
   },
   "redump-sony-playstation": {
@@ -435,10 +435,10 @@
    "folder": "psx",
    "listing": "https://minerva-archive.org/browse/Redump/Sony%20-%20PlayStation/",
    "igdb": "ps",
-   "updated": "2026-11-10T20:17:56.929Z",
+   "updated": "2026-11-12T17:58:09.616Z",
    "titles": 6511,
-   "covers": 3422,
-   "details": 3257
+   "covers": 5581,
+   "details": 3652
   },
   "redump-sony-playstation-2": {
    "name": "PlayStation 2",
@@ -446,10 +446,10 @@
    "folder": "ps2",
    "listing": "https://minerva-archive.org/browse/Redump/Sony%20-%20PlayStation%202/",
    "igdb": "ps2",
-   "updated": "2026-11-10T20:20:20.127Z",
+   "updated": "2026-11-12T18:04:58.596Z",
    "titles": 6787,
-   "covers": 3750,
-   "details": 3533
+   "covers": 5206,
+   "details": 3849
   },
   "redump-sony-playstation-3": {
    "name": "PlayStation 3",
@@ -457,10 +457,10 @@
    "folder": "ps3",
    "listing": "https://minerva-archive.org/browse/Redump/Sony%20-%20PlayStation%203/",
    "igdb": "ps3",
-   "updated": "2026-11-10T20:20:37.317Z",
+   "updated": "2026-11-12T18:08:13.763Z",
    "titles": 2265,
-   "covers": 1693,
-   "details": 1635
+   "covers": 1759,
+   "details": 1725
   },
   "redump-sony-playstation-portable": {
    "name": "PlayStation Portable",
@@ -468,10 +468,10 @@
    "folder": "psp",
    "listing": "https://minerva-archive.org/browse/Redump/Sony%20-%20PlayStation%20Portable/",
    "igdb": "psp",
-   "updated": "2026-11-10T20:20:27.446Z",
+   "updated": "2026-11-12T18:06:48.104Z",
    "titles": 2222,
-   "covers": 1506,
-   "details": 1403
+   "covers": 1807,
+   "details": 1536
   }
  },
  "version": 1

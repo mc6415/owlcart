@@ -68,18 +68,28 @@
     padding: 18px 18px 0;
     position: relative;
   }
+  /* The game's artwork and screenshots, cross-fading one to the next with a
+     slow drift. Two layers take turns. */
   .backdrop {
     position: fixed;
     inset: 0 0 auto 0;
     height: 55%;
     background-size: cover;
     background-position: center 25%;
-    opacity: 0.22;
+    opacity: 0;
     -webkit-mask-image: linear-gradient(#000, transparent);
     mask-image: linear-gradient(#000, transparent);
     pointer-events: none;
     z-index: 0;
-    transition: opacity 0.3s;
+    transition: opacity 1.2s ease;
+  }
+  .backdrop.on {
+    opacity: 0.26;
+    animation: drift 9s ease-out forwards;
+  }
+  @keyframes drift {
+    from { transform: scale(1.08); }
+    to { transform: scale(1); }
   }
   .left {
     position: relative;
@@ -93,19 +103,44 @@
   }
   .cover {
     width: 100%;
-    aspect-ratio: 2 / 3;
+    /* The console's box shape, sent by the app. */
+    aspect-ratio: 1 / var(--cover-ratio, 1.5);
     border-radius: 10px;
     object-fit: cover;
     background: var(--field);
     box-shadow: 0 10px 28px rgb(0 0 0 / 0.35);
   }
+  /* No cover art: the game's initials in a framed card (like the grid's). */
   .cover.none {
-    display: grid;
-    place-items: center;
-    padding: 12px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px;
     text-align: center;
-    font-weight: 700;
-    color: var(--muted);
+    color: #fff;
+    background:
+      radial-gradient(120% 80% at 20% 0%, hsl(var(--h) 45% 42% / 0.9), transparent 70%),
+      linear-gradient(160deg, hsl(var(--h) 35% 28%), hsl(calc(var(--h) + 40) 30% 14%));
+  }
+  .cover.none::before {
+    content: "";
+    position: absolute;
+    inset: 8px;
+    border: 1.5px solid rgb(255 255 255 / 0.2);
+    border-radius: 6px;
+  }
+  .cover.none b {
+    font-size: 56px;
+    line-height: 1;
+    letter-spacing: -0.04em;
+  }
+  .cover.none span {
+    font-size: 13px;
+    font-weight: 600;
+    opacity: 0.8;
   }
   .details-btn {
     padding: 9px 0;
@@ -142,9 +177,23 @@
     line-height: 1.2;
   }
   .meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     color: var(--muted);
     font-size: 13px;
   }
+  /* IGDB rating, coloured like review sites (see src/lib/rating.ts). */
+  .score {
+    flex-shrink: 0;
+    padding: 1px 8px;
+    border-radius: 9px;
+    color: #fff;
+    font: 700 12px/1.5 ui-monospace, "Roboto Mono", monospace;
+  }
+  .score.good { background: rgb(28 150 84); }
+  .score.mid { background: rgb(196 132 16); }
+  .score.low { background: rgb(184 52 52); }
   .summary {
     margin: 10px 0 0;
     font-size: 14px;
@@ -188,24 +237,38 @@
     font-size: 12px;
     color: var(--muted);
   }
+  /* Already downloaded: a green edge and a tick instead of a button. */
+  .version.have {
+    border-left: 3px solid var(--ok);
+    padding-left: 10px;
+  }
+  /* Only the first version you don't have yet (the best match) gets a solid
+     button; the others are outlined, so a long list isn't a wall of purple. */
   .dl {
     flex-shrink: 0;
     min-width: 108px;
-    padding: 9px 14px;
+    padding: 8px 14px;
     border-radius: 8px;
-    background: var(--accent);
-    color: var(--accent-text);
+    background: transparent;
+    border: 1.5px solid var(--accent);
+    color: var(--accent);
     font-weight: 700;
     font-size: 14px;
+  }
+  .dl.primary {
+    background: var(--accent);
+    color: var(--accent-text);
   }
   .dl:active {
     transform: scale(0.97);
   }
   .dl[disabled] {
     background: var(--field);
+    border-color: transparent;
     color: var(--muted);
   }
   .dl.have[disabled] {
+    background: none;
     color: var(--ok);
   }
   .bar {
@@ -236,6 +299,168 @@
     color: var(--text);
     font-size: 20px;
     margin-bottom: 4px;
+  }
+
+  /* ---- nothing highlighted: the console at a glance ---- */
+  .overview {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 18px 18px 12px;
+    position: relative;
+  }
+  .overview::before {
+    content: "";
+    position: fixed;
+    inset: -30% -10% auto 30%;
+    height: 70%;
+    background: radial-gradient(closest-side, var(--accent), transparent);
+    opacity: 0.25;
+    filter: blur(30px);
+    pointer-events: none;
+  }
+  .overview .console {
+    position: relative;
+  }
+  .overview h1 {
+    position: relative;
+    margin: 0 0 2px;
+    font-size: 28px;
+  }
+  .overview .stats {
+    position: relative;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .overview h2 {
+    position: relative;
+    margin-top: 18px;
+  }
+  .shelf {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
+  }
+  .shelf.recent {
+    grid-template-columns: repeat(4, 1fr);
+    max-width: 66%;
+  }
+  .pick {
+    position: relative;
+    padding: 0;
+    text-align: left;
+    min-width: 0;
+  }
+  .pick:active {
+    transform: scale(0.96);
+  }
+  .pick .cover {
+    border-radius: 7px;
+    box-shadow: 0 6px 16px rgb(0 0 0 / 0.35);
+  }
+  .pick .cover.none b {
+    font-size: 26px;
+  }
+  .pick .cover.none span {
+    display: none;
+  }
+  .pick .score {
+    position: absolute;
+    left: 5px;
+    top: 5px;
+    font-size: 11px;
+    padding: 0 6px;
+  }
+  .pick .name {
+    margin-top: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hint {
+    position: relative;
+    margin-top: 18px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  /* ---- details open on the top screen: screenshots and similar games ---- */
+  .gallery {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 12px 10px;
+  }
+  .stage {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--field);
+    box-shadow: 0 10px 28px rgb(0 0 0 / 0.35);
+  }
+  .shot {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    opacity: 0;
+    transition: opacity 0.9s ease;
+  }
+  .shot.on {
+    opacity: 1;
+    animation: drift 7s ease-out forwards;
+  }
+  .stage .caption {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 28px 14px 10px;
+    background: linear-gradient(transparent, rgb(0 0 0 / 0.7));
+    color: #fff;
+    font-weight: 700;
+    font-size: 15px;
+    pointer-events: none;
+  }
+  .thumbs {
+    flex-shrink: 0;
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .thumbs button {
+    flex-shrink: 0;
+    width: 74px;
+    aspect-ratio: 16 / 9;
+    padding: 0;
+    border-radius: 6px;
+    background-size: cover;
+    background-position: center;
+    opacity: 0.5;
+    outline: 2px solid transparent;
+    outline-offset: -2px;
+    transition: opacity 0.2s, outline-color 0.2s;
+  }
+  .thumbs button.on {
+    opacity: 1;
+    outline-color: var(--accent);
+  }
+  .gallery h2 {
+    margin: 2px 0 0;
+  }
+  .gallery .shelf {
+    gap: 8px;
+  }
+  .gallery .pick .name {
+    display: none;
   }
 
   /* ---- downloads strip ---- */
@@ -274,8 +499,35 @@
   <div class="empty" id="empty">
     <div><b>Owlcart</b>Pick a game on the top screen to see it here.</div>
   </div>
+  <div class="overview" id="overview" hidden>
+    <div class="console" id="ovGroup"></div>
+    <h1 id="ovName"></h1>
+    <div class="stats" id="ovStats"></div>
+    <div id="ovTopBox">
+      <h2>Top rated</h2>
+      <div class="shelf" id="ovTop"></div>
+    </div>
+    <div id="ovRecentBox">
+      <h2>Downloaded recently</h2>
+      <div class="shelf recent" id="ovRecent"></div>
+    </div>
+    <div class="hint">Highlight a game on the top screen to see it here.</div>
+  </div>
+  <div class="gallery" id="gallery" hidden>
+    <div class="stage" id="stage">
+      <div class="shot" id="shotA"></div>
+      <div class="shot" id="shotB"></div>
+      <div class="caption" id="galTitle"></div>
+    </div>
+    <div class="thumbs" id="thumbs"></div>
+    <div id="similarBox">
+      <h2>More like this</h2>
+      <div class="shelf" id="similar"></div>
+    </div>
+  </div>
   <div class="game" id="game" hidden>
     <div class="backdrop" id="backdrop"></div>
+    <div class="backdrop" id="backdrop2"></div>
     <div class="left">
       <div id="coverBox"></div>
       <button class="details-btn" id="detailsBtn">Details</button>
@@ -305,7 +557,7 @@
     return e;
   }
 
-  function versionRow(v) {
+  function versionRow(v, primary) {
     const row = el("div", "version");
     const info = el("div", "info");
     info.append(el("div", "label", v.label), el("div", "sub", v.sub));
@@ -318,14 +570,16 @@
     }
     const btn = el("button", "dl");
     if (v.status === "have") {
-      btn.textContent = "Downloaded";
+      btn.textContent = "✓ Downloaded";
       btn.disabled = true;
       btn.classList.add("have");
+      row.classList.add("have");
     } else if (v.status === "queued") {
       btn.textContent = v.progress != null ? Math.round(v.progress * 100) + "%" : "Queued";
       btn.disabled = true;
     } else {
       btn.textContent = "Download";
+      if (primary) btn.classList.add("primary");
       btn.onclick = () => {
         btn.disabled = true;
         btn.textContent = "Queued";
@@ -336,17 +590,27 @@
     return row;
   }
 
-  function renderGame(g) {
-    $("empty").hidden = !!g;
+  function renderGame(g, hasOverview) {
+    $("empty").hidden = !!g || hasOverview;
     $("game").hidden = !g;
-    if (!g) return;
+    if (!g) {
+      clearInterval(slideTimer);
+      return;
+    }
     const changed = !current || current.title !== g.title;
     $("console").textContent = g.console || "";
     $("title").textContent = g.title;
-    $("meta").textContent = (g.meta || []).join(" · ");
+    const meta = $("meta");
+    meta.textContent = "";
+    if (g.rating) {
+      const s = el("span", "score " + g.rating.tier, String(g.rating.score));
+      s.title = `IGDB rating, from ${g.rating.count} reviews`;
+      meta.append(s);
+    }
+    meta.append(el("span", null, (g.meta || []).join(" · ")));
     $("summary").textContent = g.summary || "";
     if (changed) $("summary").classList.add("clamp");
-    $("backdrop").style.backgroundImage = g.hero ? `url("${g.hero}")` : "none";
+    if (changed) startSlides(g.heroes || []);
     if (changed) {
       const box = $("coverBox");
       box.textContent = "";
@@ -356,14 +620,180 @@
         img.alt = "";
         box.append(img);
       } else {
-        box.append(el("div", "cover none", g.title));
+        box.append(placeholder(g.title));
       }
       document.querySelector(".scroll").scrollTop = 0;
     }
     const list = $("versions");
     list.textContent = "";
-    (g.versions || []).forEach((v) => list.append(versionRow(v)));
+    const best = (g.versions || []).find((v) => v.status === "none");
+    (g.versions || []).forEach((v) => list.append(versionRow(v, v === best)));
     $("detailsBtn").onclick = () => send({ action: "details", title: g.title });
+  }
+
+  function placeholder(title) {
+    const ph = el("div", "cover none");
+    ph.style.setProperty("--h", String(hash(title) % 360));
+    ph.append(el("b", null, initials(title)), el("span", null, title));
+    return ph;
+  }
+
+  // ---- backdrop slideshow ----
+  let slides = [];
+  let slideAt = 0;
+  let slideTimer = null;
+  let front = 0;
+  function showSlide(url) {
+    const layers = [$("backdrop"), $("backdrop2")];
+    // Swap layers once the next image has loaded, so it fades in whole.
+    const img = new Image();
+    img.onload = () => {
+      front = 1 - front;
+      const next = layers[front];
+      next.style.backgroundImage = `url("${url}")`;
+      next.classList.remove("on");
+      void next.offsetWidth; // restart the drift
+      next.classList.add("on");
+      layers[1 - front].classList.remove("on");
+    };
+    img.src = url;
+  }
+  function startSlides(urls) {
+    clearInterval(slideTimer);
+    slides = urls;
+    slideAt = 0;
+    if (!urls.length) {
+      $("backdrop").classList.remove("on");
+      $("backdrop2").classList.remove("on");
+      return;
+    }
+    showSlide(urls[0]);
+    if (urls.length > 1) {
+      slideTimer = setInterval(() => {
+        slideAt = (slideAt + 1) % slides.length;
+        showSlide(slides[slideAt]);
+      }, 6000);
+    }
+  }
+
+  // ---- the gallery ----
+  let galleryKey = "";
+  let galleryAt = 0;
+  let galleryTimer = null;
+  let galleryFront = 0;
+  let galleryUrls = [];
+  function galleryShow(i) {
+    galleryAt = i;
+    const url = galleryUrls[i];
+    [...$("thumbs").children].forEach((b, j) => b.classList.toggle("on", j === i));
+    $("thumbs").children[i]?.scrollIntoView({ inline: "nearest", block: "nearest" });
+    const img = new Image();
+    img.onload = () => {
+      if (galleryUrls[galleryAt] !== url) return;
+      const layers = [$("shotA"), $("shotB")];
+      galleryFront = 1 - galleryFront;
+      const next = layers[galleryFront];
+      next.style.backgroundImage = `url("${url}")`;
+      next.classList.remove("on");
+      void next.offsetWidth; // restart the drift
+      next.classList.add("on");
+      layers[1 - galleryFront].classList.remove("on");
+    };
+    img.src = url;
+  }
+  function galleryTick() {
+    clearInterval(galleryTimer);
+    if (galleryUrls.length > 1) {
+      galleryTimer = setInterval(() => galleryShow((galleryAt + 1) % galleryUrls.length), 5000);
+    }
+  }
+  function renderGallery(g) {
+    $("gallery").hidden = !g;
+    if (!g) {
+      clearInterval(galleryTimer);
+      galleryKey = "";
+      return;
+    }
+    const urls = g.heroes && g.heroes.length ? g.heroes : g.cover ? [g.cover] : [];
+    const key = g.title + "|" + urls.join(",");
+    if (key !== galleryKey) {
+      galleryKey = key;
+      galleryUrls = urls;
+      $("galTitle").textContent = g.title;
+      $("thumbs").replaceChildren(
+        ...(urls.length > 1 ? urls : []).map((u, i) => {
+          const b = el("button");
+          b.style.backgroundImage = `url("${u}")`;
+          b.onclick = () => {
+            galleryShow(i);
+            galleryTick(); // a tap restarts the timer
+          };
+          return b;
+        }),
+      );
+      ["shotA", "shotB"].forEach((id) => $(id).classList.remove("on"));
+      if (urls.length) galleryShow(0);
+      galleryTick();
+    }
+    const sim = g.similar || [];
+    $("similarBox").hidden = !sim.length;
+    const simKey = JSON.stringify(sim);
+    if ($("similar").dataset.key !== simKey) {
+      $("similar").dataset.key = simKey;
+      $("similar").replaceChildren(
+        ...sim.map((p) => {
+          const b = pickCard(p, true);
+          // Opens that game's details on the top screen.
+          b.onclick = () => send({ action: "details", title: p.title });
+          return b;
+        }),
+      );
+    }
+  }
+
+  // ---- the console overview ----
+  function pickCard(p, withScore) {
+    const b = el("button", "pick");
+    if (p.cover) {
+      const img = el("img", "cover");
+      img.src = p.cover;
+      img.alt = "";
+      b.append(img);
+    } else {
+      b.append(placeholder(p.title));
+    }
+    if (withScore && p.rating) b.append(el("span", "score " + p.rating.tier, String(p.rating.score)));
+    b.append(el("div", "name", p.title));
+    b.onclick = () => send({ action: "highlight", url: p.url });
+    return b;
+  }
+  let lastOverview = "";
+  function renderOverview(o) {
+    $("overview").hidden = !o;
+    if (!o) return;
+    // Only rebuild when something changed (state arrives with every download tick).
+    const key = JSON.stringify(o);
+    if (key === lastOverview) return;
+    lastOverview = key;
+    $("ovGroup").textContent = o.group;
+    $("ovName").textContent = o.console;
+    $("ovStats").textContent = o.stats.join(" · ");
+    $("ovTopBox").hidden = !o.top.length;
+    $("ovTop").replaceChildren(...o.top.map((p) => pickCard(p, true)));
+    $("ovRecentBox").hidden = !o.recent.length;
+    $("ovRecent").replaceChildren(...o.recent.map((p) => pickCard(p, false)));
+  }
+
+  // Same as src/lib/Cover.svelte, so a game has the same colours on both screens.
+  function hash(s) {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+    return Math.abs(h);
+  }
+  function initials(title) {
+    const words = title.split(/[\s\-:]+/).filter((w) => /[A-Za-z0-9]/.test(w) && !/^(the|a|an|of)$/i.test(w));
+    if (/^\d[\d.]{0,4}$/.test(words[0] || "")) return words[0];
+    return (words.length ? words : [title]).slice(0, 2).map((w) => w.match(/[A-Za-z0-9]/)?.[0] ?? "").join("").toUpperCase() || "?";
   }
 
   function renderJobs(jobs) {
@@ -388,10 +818,25 @@
   $("summary").onclick = () => $("summary").classList.toggle("clamp");
 
   window.render = (state) => {
-    document.documentElement.dataset.theme = state.theme === "dark" ? "dark" : "light";
-    renderGame(state.game || null);
+    const root = document.documentElement;
+    root.dataset.theme = state.theme === "dark" ? "dark" : "light";
+    // The console's colour, for buttons and highlights.
+    if (state.tint) {
+      root.style.setProperty("--accent", state.tint);
+      root.style.setProperty("--accent-text", "#fff");
+    } else {
+      root.style.removeProperty("--accent");
+      root.style.removeProperty("--accent-text");
+    }
+    root.style.setProperty("--cover-ratio", String(state.coverRatio || 1.5));
+    const game = state.game || null;
+    const gallery = game && game.gallery ? game : null;
+    renderOverview(game ? null : state.overview || null);
+    renderGallery(gallery);
+    renderGame(gallery ? null : game, !!state.overview || !!gallery);
     renderJobs(state.jobs);
-    current = state.game || null;
+    // After the gallery, the details view starts afresh (slides and all).
+    current = gallery ? null : game;
   };
 </script>
 </body>

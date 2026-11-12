@@ -67,11 +67,20 @@ export interface Settings {
   extractArchives: boolean;
   deleteArchives: boolean;
   dataUrl: string;
+  haptics: boolean;
+  sounds: boolean;
+  checkUpdates: boolean;
 }
 
 export const api = {
   engineStatus: () => invoke<{ ok: boolean; error: string | null }>("engine_status"),
   loadListing: (url: string) => invoke<Listing>("load_listing", { url }),
+  /** The listing saved last time this console was opened, if any. */
+  cachedListing: (url: string) => invoke<Listing | null>("cached_listing", { url }),
+  /** A newer listing than the saved one, or null if it hasn't changed. */
+  refreshListing: (url: string) => invoke<Listing | null>("refresh_listing", { url }),
+  /** A listing ahead of time: the saved copy, or downloaded and saved. */
+  prefetchListing: (url: string) => invoke<Listing>("prefetch_listing", { url }),
   /** `folder` names the console's download subfolder (e.g. "psx"); omit to use the archive's name. */
   enqueue: (items: { name: string; url: string; folder?: string; subfolder?: string }[]) =>
     invoke<void>("enqueue", { items }),
@@ -94,6 +103,13 @@ export const api = {
   /** Dual-screen devices (Android): whether there's a second screen, and what to show on it. */
   secondScreenAvailable: () => invoke<boolean>("second_screen_available"),
   secondScreenUpdate: (state: unknown) => invoke<void>("second_screen_update", { state }),
+  /** Whether a controller is connected (Android). */
+  gamepadConnected: () => invoke<boolean>("gamepad_connected"),
+  /** A newer Owlcart release (the release page, or on Android its APK), if there is one. */
+  checkUpdate: () => invoke<{ version: string; url: string } | null>("check_update"),
+  openUpdate: (url: string) => invoke<void>("open_update", { url }),
+  /** A short vibration (Android): `strength` 1-255. */
+  rumble: (ms: number, strength: number) => invoke("rumble", { ms, strength }),
   /** Games already in the download folder: file name without extension -> path. */
   downloaded: (folder?: string, archiveFolder?: string) =>
     invoke<Record<string, string>>("downloaded", { folder, archiveFolder }),

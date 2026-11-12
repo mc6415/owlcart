@@ -43,7 +43,7 @@
     animation: appear 0.4s ease-out forwards;
   }
   .art {
-    aspect-ratio: 2 / 3;
+    aspect-ratio: 1 / var(--cover-ratio, 1.5);
     border-radius: 8px;
   }
   .line {

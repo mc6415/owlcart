@@ -1,7 +1,7 @@
 <script lang="ts">
   import "@fontsource-variable/space-grotesk";
   import "@fontsource-variable/jetbrains-mono";
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import { listen } from "@tauri-apps/api/event";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -14,15 +14,18 @@
   import DownloadsButton from "$lib/DownloadsButton.svelte";
   import Icon from "$lib/Icon.svelte";
   import Flag from "$lib/Flag.svelte";
+  import PadButton from "$lib/PadButton.svelte";
   import GameModal from "$lib/GameModal.svelte";
   import ConsolePicker from "$lib/ConsolePicker.svelte";
   import Skeleton from "$lib/Skeleton.svelte";
   import HeroCollage from "$lib/HeroCollage.svelte";
+  import { ratingTier } from "$lib/rating";
+  import { feel, setFeedback } from "$lib/feedback";
   import { flyToDownloads } from "$lib/motion";
   import { isAndroid } from "$lib/platform";
   import { loadAddons, type Addon } from "$lib/addons";
   import { coverFor } from "$lib/covers.svelte";
-  import { fade } from "svelte/transition";
+  import { fade, fly, slide } from "svelte/transition";
   import { loadConsoles, consoleFor, type ConsoleInfo } from "$lib/consoles";
   import { compareVersions, preferredRegions } from "$lib/versions";
 
@@ -40,6 +43,21 @@
     SNK: "#d8a400",
     Atari: "#e0402e",
     Bandai: "#e5007e",
+  };
+  /** Consoles with a colour of their own, by download folder (else the maker's). */
+  const CONSOLE_TINTS: Record<string, string> = {
+    gb: "#6f9a2c",
+    gbc: "#8b47d6",
+    gba: "#4b3fc4",
+    nds: "#7d8796",
+    virtualboy: "#d11f2f",
+    snes: "#6c4fd0",
+    n64: "#1f9a4e",
+    gc: "#5c46b8",
+    wii: "#3aa6dd",
+    dreamcast: "#f0641e",
+    saturn: "#4a5bd4",
+    psp: "#3d4250",
   };
 
   function lastListing(): string {
@@ -145,6 +163,28 @@
   let lastScroll = { el: null as EventTarget | null, top: 0 };
   let chromeLockUntil = 0;
   let chromeTall = $state(false);
+  // Dual-screen devices and short windows (the AYN Thor's top screen is about
+  // 830x470): a slim header, regions and sort in the toolbar, and title-only
+  // captions, so more of the screen is games. The second screen shows the rest.
+  let dualScreen = $state(false);
+  let winH = $state(800);
+  let compact = $derived(dualScreen || winH < 560);
+  /** The toolbar panel shown under it in compact mode. */
+  let panel = $state<"" | "regions" | "sort">("");
+  const togglePanel = (p: "regions" | "sort") => (panel = panel === p ? "" : p);
+  const SORTS: [string, string][] = [
+    ["name:0", "Name A–Z"],
+    ["name:1", "Name Z–A"],
+    ["rating:1", "Top rated"],
+    ["size:1", "Largest"],
+    ["size:0", "Smallest"],
+  ];
+  let sortValue = $derived(`${sortBy}:${sortDesc ? 1 : 0}`);
+  function pickSort(v: string) {
+    const [key, desc] = v.split(":");
+    sortBy = key as SortKey;
+    sortDesc = desc === "1";
+  }
   function onListScroll(e: Event) {
     const el = e.target as HTMLElement;
     if (!isAndroid || !el.classList?.contains("viewport")) return;
@@ -181,20 +221,21 @@
   $effect(() => {
     void listing;
     chromeHidden = false;
+    panel = "";
   });
   // Measure the header as soon as a list is shown (and again if a banner
   // appears), so even the first slide doesn't resize anything.
   $effect(() => {
-    void [listing, error, engineError];
-    if (!isAndroid || !colheadEl || !appEl) return;
-    const app = appEl, head = colheadEl;
-    const id = requestAnimationFrame(() => {
-      if (chromeHidden) return;
-      chromeHeight = head.getBoundingClientRect().top - app.getBoundingClientRect().top;
-      chromeTall = true;
-    });
+    void [listing, error, engineError, compact, panel];
+    const id = requestAnimationFrame(measureChrome);
     return () => cancelAnimationFrame(id);
   });
+  // Also called once a toolbar panel has finished sliding open or shut.
+  function measureChrome() {
+    if (!isAndroid || !colheadEl || !appEl || chromeHidden) return;
+    chromeHeight = colheadEl.getBoundingClientRect().top - appEl.getBoundingClientRect().top;
+    chromeTall = true;
+  }
   let downloadsBtn = $state<{ toggle: () => void }>();
 
   function typingIn(t: EventTarget | null) {
@@ -205,7 +246,29 @@
   function moveCursor(delta: number) {
     const n = filtered.length;
     if (!n) return;
-    cursor = cursor < 0 ? 0 : Math.min(n - 1, Math.max(0, cursor + delta));
+    const next = cursor < 0 ? 0 : Math.min(n - 1, Math.max(0, cursor + delta));
+    if (next !== cursor) feel("move");
+    cursor = next;
+  }
+
+  // ---- switching consoles with L2 / R2 ----
+  /** Consoles in the picker's order (grouped by maker). */
+  let consoleOrder = $derived(
+    [...new Set(consoles.map((c) => c.group))].flatMap((g) => consoles.filter((c) => c.group === g)),
+  );
+  /** Which way the last switch went, so the new console slides in from that side. */
+  let slideDir = $state(0);
+  let slideTimer: ReturnType<typeof setTimeout> | undefined;
+  function switchConsole(dir: 1 | -1) {
+    const list = consoleOrder;
+    if (!list.length || loading) return;
+    const i = currentConsole ? list.indexOf(currentConsole) : -1;
+    const next = list[(i + dir + list.length) % list.length];
+    feel("switch");
+    slideDir = dir;
+    clearTimeout(slideTimer);
+    slideTimer = setTimeout(() => (slideDir = 0), 1500);
+    load(next.listing);
   }
 
   function onGlobalKey(e: KeyboardEvent) {
@@ -327,13 +390,18 @@
     ["X", "Download the highlighted game (or the selected ones)"],
     ["Y", "Search"],
     ["L1 R1", "Page up / down"],
-    ["L2 R2", "Jump to the top / bottom"],
+    ["L2 R2", "Previous / next console"],
     ["Start", "Downloads"],
     ["Select", "This list"],
     ["L3", "Switch list / grid"],
     ["R3", "Games only (hide demos, betas, prototypes)"],
   ];
+  /** A newer Owlcart release, shown in the title bar (see check_update). */
+  let update = $state<{ version: string; url: string } | null>(null);
+  /** A controller is connected (Android): show its buttons where keyboard hints would be. */
+  let padConnected = $state(false);
   function onPad(button: string) {
+    padConnected = true;
     if (button === "select") {
       showKeys = !showKeys;
       return;
@@ -365,10 +433,10 @@
         moveCursor(page);
         break;
       case "l2":
-        if (filtered.length) cursor = 0;
+        switchConsole(-1);
         break;
       case "r2":
-        cursor = filtered.length - 1;
+        switchConsole(1);
         break;
       case "l3":
         setView(view === "grid" ? "list" : "grid");
@@ -413,18 +481,30 @@
     const PRIOR = 50;
     return new Map(Object.entries(ratings).map(([t, [r, n]]) => [t, (r * n + mean * PRIOR) / (n + PRIOR)]));
   });
-  /** Loads which games have art, and their IGDB ids and ratings, for the current console. */
-  async function refreshArtTitles() {
+  // Kept for the current console and the ones either side (see prefetchNeighbours).
+  type ArtData = { titles: string[] | null; games: Record<string, number[]> };
+  const artCache = new Map<string, ArtData>();
+  async function artData(slug: string): Promise<ArtData> {
+    const [titles, games] = await Promise.all([
+      api.coverTitles(slug).catch(() => null),
+      api.games(slug).catch(() => ({})),
+    ]);
+    const d = { titles, games };
+    artCache.set(slug, d);
+    return d;
+  }
+  /** Loads which games have art, and their IGDB ids and ratings, for the
+   *  current console. `cached`: use what's already in memory, if anything. */
+  async function refreshArtTitles(cached = false) {
     const slug = listing ? listingSlug(listing.url) : "";
-    const [titles, games] = slug
-      ? await Promise.all([api.coverTitles(slug).catch(() => null), api.games(slug).catch(() => ({}))])
-      : [null, {}];
-    artTitles = titles ? new Set(titles) : null;
-    igdbGames = games;
+    const d = !slug ? { titles: null, games: {} } : (cached && artCache.get(slug)) || (await artData(slug));
+    if (slug !== (listing ? listingSlug(listing.url) : "")) return; // moved on meanwhile
+    artTitles = d.titles ? new Set(d.titles) : null;
+    igdbGames = d.games;
   }
   $effect(() => {
     listing; // reload when the console changes
-    refreshArtTitles();
+    refreshArtTitles(true);
   });
 
   /** Saves the keys, then fetches covers and details for the current console. */
@@ -537,6 +617,37 @@
   function toggleRegion(r: string) {
     if (regionSel.has(r)) regionSel.delete(r);
     else regionSel.add(r);
+    saveRegions();
+  }
+  function clearRegions() {
+    regionSel.clear();
+    saveRegions();
+  }
+
+  // The region filter starts on the major regions, so a console isn't full of
+  // releases from one country only. Changing it (or clearing it to show
+  // everything) is remembered for every console.
+  const DEFAULT_REGIONS = ["USA", "Europe", "Japan", "World"];
+  function savedRegions(): string[] {
+    try {
+      const v = localStorage.getItem("regions");
+      if (v) return JSON.parse(v);
+    } catch {}
+    return DEFAULT_REGIONS;
+  }
+  function saveRegions() {
+    try {
+      localStorage.setItem("regions", JSON.stringify([...regionSel]));
+    } catch {}
+  }
+  /** Selects the saved regions this console has (none: show everything). */
+  function applyRegions() {
+    regionSel.clear();
+    const have = new Set(allRegions);
+    // In the order the device prefers, which picks each game's shown version.
+    const order = preferredRegions([]);
+    const at = (r: string) => (order.includes(r) ? order.indexOf(r) : order.length);
+    for (const r of savedRegions().sort((a, b) => at(a) - at(b))) if (have.has(r)) regionSel.add(r);
   }
 
   let filtered = $derived.by(() => {
@@ -601,7 +712,13 @@
   let downloadedUrls = $derived(
     new Set((listing?.entries ?? []).filter((e) => e.kind === "file" && have[fileStem(e.name)]).map((e) => e.url)),
   );
-  let tint = $derived(TINTS[currentConsole?.group ?? ""] ?? "var(--accent)");
+  let tintHex = $derived(CONSOLE_TINTS[currentConsole?.folder ?? ""] ?? TINTS[currentConsole?.group ?? ""] ?? null);
+  let tint = $derived(tintHex ?? "var(--accent)");
+  /** The console's box shape (see ConsoleInfo.coverRatio), for covers everywhere. */
+  let coverRatio = $derived(currentConsole?.coverRatio ?? 1.5);
+  $effect(() => {
+    document.documentElement.style.setProperty("--cover-ratio", String(coverRatio));
+  });
 
   // Updates and DLC, loaded in the background for consoles that have them.
   let addonsByGame = $state<Map<string, { updates: Addon[]; dlc: Addon[] }> | null>(null);
@@ -626,7 +743,6 @@
   // ---- second screen (dual-screen devices like the AYN Thor) ----
   // Shows the game in the details window, or else the one highlighted with
   // the controller, with its versions and download buttons, plus downloads.
-  let dualScreen = $state(false);
   let screenTitle = $state<string | null>(null);
   let screenInfo = $state<{ title: string; cover: string | null; details: GameDetails | null } | null>(null);
   $effect(() => {
@@ -635,8 +751,95 @@
   });
   $effect(() => {
     const item = cursor >= 0 ? filtered[cursor] : undefined;
-    const t = detailTitle ?? (item?.kind === "file" ? parseName(item.name).title : null);
-    if (t) screenTitle = t;
+    // Nothing highlighted: the second screen shows the console overview.
+    screenTitle = detailTitle ?? (item?.kind === "file" ? parseName(item.name).title : null);
+  });
+  // The overview: the console's best-rated games (within the current
+  // filters) and what finished downloading this session, with covers.
+  type Pick = { title: string; url: string; cover: string | null; rating: { score: number; tier: string } | null };
+  /** A game for the second screen's shelves: its cover, rating and card. */
+  async function makePick(title: string, url: string, slug: string): Promise<Pick> {
+    const r = ratings[titleOf.get(url) ?? ""];
+    return {
+      title,
+      url: cardOf.get(url) ?? url,
+      cover: await coverFor(title, slug).catch(() => null),
+      rating: r ? { score: Math.round(r[0]), tier: ratingTier(r[0]) } : null,
+    };
+  }
+  let overviewTop = $state<Pick[]>([]);
+  let overviewRecent = $state<Pick[]>([]);
+  $effect(() => {
+    if (!dualScreen || !listing) return;
+    const slug = listingSlug(listing.url);
+    const score = (e: Entry) => sortScores.get(titleOf.get(e.url) ?? "") ?? -1;
+    const top = filtered
+      .filter((e) => e.kind === "file" && score(e) >= 0)
+      .sort((a, b) => score(b) - score(a))
+      .slice(0, 6);
+    const urls = new Set(listing.entries.map((e) => e.url));
+    const recent = jobs
+      .filter((j) => j.state === "done" && urls.has(j.romUrl))
+      .slice(-4)
+      .reverse();
+    const pick = (title: string, url: string) => makePick(title, url, slug);
+    let stale = false;
+    Promise.all([
+      Promise.all(top.map((e) => pick(parseName(e.name).title, e.url))),
+      Promise.all(recent.map((j) => pick(parseName(j.name).title, j.romUrl))),
+    ]).then(([t, r]) => {
+      if (stale) return;
+      overviewTop = t;
+      overviewRecent = r;
+    });
+    return () => (stale = true);
+  });
+  // With a game's details open on the top screen, the second screen shows
+  // its screenshots and these: the console's best-rated games sharing a
+  // genre with it.
+  let similar = $state<Pick[]>([]);
+  $effect(() => {
+    const title = detailTitle;
+    const l = listing;
+    similar = [];
+    if (!dualScreen || !title || !l) return;
+    const slug = listingSlug(l.url);
+    const score = (e: Entry) => sortScores.get(titleOf.get(e.url) ?? "") ?? -1;
+    const pool = untrack(() =>
+      filtered
+        .filter((e) => e.kind === "file" && score(e) >= 0)
+        .sort((a, b) => score(b) - score(a))
+        .slice(0, 200),
+    );
+    // Genres so broad they'd make almost anything "similar" (GTA and Final
+    // Fantasy X are both "Adventure"), unless a game has nothing else.
+    const BROAD = new Set(["Adventure", "Arcade", "Indie"]);
+    const keyGenres = (gs: string[] = []) => {
+      const narrow = gs.filter((g) => !BROAD.has(g));
+      return new Set(narrow.length ? narrow : gs);
+    };
+    let stale = false;
+    (async () => {
+      const me = await gameDetails(title, slug).catch(() => null);
+      const mine = keyGenres(me?.genres);
+      if (!me || !mine.size) return;
+      // The best-rated games sharing the most of its genres.
+      const found: { e: Entry; t: string; shared: number; rank: number }[] = [];
+      for (const [rank, e] of pool.entries()) {
+        if (stale) return;
+        const t = parseName(e.name).title;
+        const d = await gameDetails(t, slug).catch(() => null);
+        if (!d || d.igdb === me.igdb) continue;
+        const shared = [...keyGenres(d.genres)].filter((g) => mine.has(g)).length;
+        if (shared) found.push({ e, t, shared, rank });
+        // Enough that share everything: no need to look further.
+        if (found.filter((f) => f.shared === mine.size).length >= 6) break;
+      }
+      found.sort((a, b) => b.shared - a.shared || a.rank - b.rank);
+      const out = await Promise.all(found.slice(0, 6).map((f) => makePick(f.t, f.e.url, slug)));
+      if (!stale) similar = out;
+    })();
+    return () => (stale = true);
   });
   $effect(() => {
     const title = screenTitle;
@@ -664,13 +867,14 @@
         title: info.title,
         console: listing.crumbs.at(-1)?.name ?? "",
         cover: info.cover ?? (d?.cover ? igdbImage(d.cover, "cover_big") : null),
-        hero: d?.artworks?.[0]
-          ? igdbImage(d.artworks[0], "720p")
-          : d?.screenshots?.[0]
-            ? igdbImage(d.screenshots[0], "720p")
-            : null,
+        // Artwork and screenshots, shown one after another behind the details.
+        heroes: [...(d?.artworks ?? []), ...(d?.screenshots ?? [])].slice(0, 8).map((id) => igdbImage(id, "720p")),
         meta: [d?.released?.slice(0, 4), d?.genres?.slice(0, 2).join(", "), d?.developers?.[0]].filter(Boolean),
         summary: d?.summary ?? "",
+        // Details open on the top screen: show screenshots and similar games instead.
+        gallery: !!detailTitle,
+        similar,
+        rating: d?.rating != null ? { score: Math.round(d.rating), tier: ratingTier(d.rating), count: d.ratingCount ?? 0 } : null,
         versions: versionsOf(info.title).map((e) => {
           const p = parseName(e.name);
           const job = jobs.find((j) => j.romUrl === e.url && !["failed", "cancelled"].includes(j.state));
@@ -703,7 +907,14 @@
         };
       });
     const theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    const state = { game: game || null, jobs: active, theme };
+    const overview = listing && {
+      console: currentConsole?.name ?? listing.crumbs.at(-1)?.name ?? "",
+      group: currentConsole?.group ?? "",
+      stats: gameCount ? [`${gameCount.toLocaleString()} games`, formatBytes(totalBytes)] : [],
+      top: overviewTop,
+      recent: overviewRecent,
+    };
+    const state = { game: game || null, overview: overview || null, jobs: active, theme, tint: tintHex, coverRatio };
     // Batch quick changes (moving through the grid, progress ticks).
     clearTimeout(screenTimer);
     screenTimer = setTimeout(() => api.secondScreenUpdate(state).catch(() => {}), 80);
@@ -723,6 +934,13 @@
     } else if (msg.action === "details" && msg.title) {
       detailOrigin = null;
       detailTitle = msg.title;
+    } else if (msg.action === "highlight" && msg.url) {
+      // A game picked from the overview: highlight it on the top screen.
+      const i = filtered.findIndex((e) => e.url === msg.url);
+      if (i >= 0) {
+        cursor = i;
+        feel("move");
+      }
     }
   }
 
@@ -793,6 +1011,7 @@
       if (seenDone.has(j.id)) continue;
       seenDone.add(j.id);
       justDone.add(j.romUrl);
+      feel("done");
       setTimeout(() => justDone.delete(j.romUrl), 1600);
     }
   });
@@ -838,22 +1057,82 @@
   let totalBytes = $derived(listing?.entries.reduce((s, e) => s + (e.kind === "file" ? e.sizeBytes : 0), 0) ?? 0);
   let gameCount = $derived(versionsByGame.size);
 
+  // A console opened before shows straight away from its saved copy (see
+  // Manager::fetch_listing), then quietly picks up any changes. Only the
+  // latest load counts, so a slow one can't replace a console picked since.
+  let loadToken = 0;
+  /** Listings ready to show without asking the backend: the current console
+   *  and the ones either side (see prefetchNeighbours), by requested URL. */
+  const listingCache = new Map<string, Listing>();
+  function remember(url: string, l: Listing) {
+    listingCache.delete(url);
+    listingCache.set(url, l);
+    // Keep the few most recent; big consoles hold thousands of entries.
+    while (listingCache.size > 6) listingCache.delete(listingCache.keys().next().value!);
+  }
   async function load(url: string) {
-    loading = true;
+    const token = ++loadToken;
     error = null;
-    try {
-      listing = await api.loadListing(url);
-      try {
-        localStorage.setItem("lastListing", listing.url);
-      } catch {}
-      query = "";
-      selected.clear();
-      regionSel.clear();
-    } catch (e) {
-      error = String(e);
-    } finally {
+    const cached = listingCache.get(url) ?? (await api.cachedListing(url).catch(() => null));
+    if (token !== loadToken) return;
+    if (cached) {
+      remember(url, cached);
       loading = false;
+      show(cached);
+      api
+        .refreshListing(url)
+        .then((fresh) => {
+          if (!fresh) return;
+          remember(url, fresh);
+          if (token === loadToken) listing = fresh;
+        })
+        .catch(() => {});
+    } else {
+      loading = true;
+      try {
+        const l = await api.loadListing(url);
+        remember(url, l);
+        if (token === loadToken) show(l);
+      } catch (e) {
+        if (token === loadToken) error = String(e);
+      } finally {
+        if (token === loadToken) loading = false;
+      }
     }
+    prefetchNeighbours();
+  }
+  function show(l: Listing) {
+    listing = l;
+    try {
+      localStorage.setItem("lastListing", l.url);
+    } catch {}
+    query = "";
+    selected.clear();
+    applyRegions();
+  }
+  // On Android (controllers, L2 / R2), have the consoles either side ready
+  // in memory, game data and all, so switching to them is instant.
+  let prefetchTimer: ReturnType<typeof setTimeout> | undefined;
+  function prefetchNeighbours() {
+    clearTimeout(prefetchTimer);
+    if (!isAndroid && !padConnected) return;
+    // A moment's grace, so the console just opened gets the network first.
+    prefetchTimer = setTimeout(() => {
+      const list = consoleOrder;
+      const i = currentConsole ? list.indexOf(currentConsole) : -1;
+      if (i < 0 || list.length < 2) return;
+      const near = new Set([list[(i + 1) % list.length], list[(i - 1 + list.length) % list.length]]);
+      for (const c of near) {
+        if (!listingCache.has(c.listing)) {
+          api
+            .prefetchListing(c.listing)
+            .then((l) => remember(c.listing, l))
+            .catch(() => {});
+        }
+        const slug = listingSlug(c.listing);
+        if (!artCache.has(slug)) artData(slug).catch(() => {});
+      }
+    }, 300);
   }
 
   function toggleAllVisible() {
@@ -875,6 +1154,7 @@
 
   async function download(entries: Entry[], subfolder?: string) {
     flyFrom(entries);
+    feel("download");
     try {
       const folder = listing ? consoleFor(listing.url, consoles)?.folder : undefined;
       await api.enqueue(entries.map((e) => ({ name: e.name, url: e.url, folder, subfolder })));
@@ -929,9 +1209,11 @@
         old.fetchDir !== settings.fetchDir.trim()
       ) {
         resetCovers();
+        artCache.clear();
         refreshArtTitles();
       }
       hideNoArt = settings.hideWithoutArt;
+      setFeedback(settings);
       refreshHave();
       showSettings = false;
     } catch (e) {
@@ -943,6 +1225,14 @@
     settings = await api.getSettings();
     showSettings = true;
   }
+
+  // A sound / buzz as the game details or Settings open and close.
+  let wasOpen = false;
+  $effect(() => {
+    const open = !!detailTitle || showSettings;
+    if (open !== wasOpen) feel(open ? "open" : "back");
+    wasOpen = open;
+  });
 
   // Android's back gesture should close the game details or Settings rather
   // than leave the app: an extra history entry is added while one is open.
@@ -968,9 +1258,15 @@
   onMount(() => {
     window.addEventListener("popstate", onBack);
     if (isAndroid) {
-      const w = window as unknown as { __owlSecondScreen: typeof onSecondScreen; __owlPad: typeof onPad };
+      const w = window as unknown as {
+        __owlSecondScreen: typeof onSecondScreen;
+        __owlPad: typeof onPad;
+        __owlPadConnected: (v: boolean) => void;
+      };
       w.__owlSecondScreen = onSecondScreen;
       w.__owlPad = onPad;
+      w.__owlPadConnected = (v) => (padConnected = v);
+      api.gamepadConnected().then((v) => (padConnected = v)).catch(() => {});
       api.secondScreenAvailable().then((v) => (dualScreen = v)).catch(() => {});
     }
     const unlisten = listen<Job[]>("jobs", (e) => (jobs = e.payload));
@@ -978,6 +1274,7 @@
     // details and console counts straight away.
     const unData = listen("data-ready", () => {
       resetCovers();
+      artCache.clear();
       refreshArtTitles();
       loadConsoles().then((c) => (consoles = c));
     });
@@ -987,14 +1284,23 @@
       // When a fetch ends, show the new covers and counts.
       if (wasRunning && !e.payload.running) {
         resetCovers();
+        artCache.clear();
         refreshArtTitles();
         loadConsoles().then((c) => (consoles = c));
       }
       wasRunning = e.payload.running;
     });
     api.fetchStatus().then((s) => (fetchState = s));
-    api.getSettings().then((s) => (hideNoArt = s.hideWithoutArt));
+    api.getSettings().then((s) => {
+      hideNoArt = s.hideWithoutArt;
+      setFeedback(s);
+    });
     api.listJobs().then((j) => (jobs = j));
+    // Once per launch; quietly gives up offline.
+    api
+      .checkUpdate()
+      .then((u) => (update = u))
+      .catch(() => {});
     api.engineStatus().then((s) => (engineError = s.ok ? null : s.error));
     loadConsoles().then((c) => (consoles = c));
     load(lastListing());
@@ -1017,6 +1323,8 @@
   class="app"
   class:maximized
   class:android={isAndroid}
+  class:compact
+  style:--tint={tint}
   bind:this={appEl}
   style:transform={chromeHidden && chromeHeight ? `translateY(-${chromeHeight}px)` : null}
   style:height={chromeTall && chromeHeight ? `calc(100vh + ${chromeHeight}px)` : null}
@@ -1050,6 +1358,27 @@
       onPick={load}
     />
     <div class="drag" data-tauri-drag-region></div>
+    {#if update}
+      <button
+        type="button"
+        class="update"
+        title={isAndroid ? `Download Owlcart ${update.version}` : `Owlcart ${update.version} is out: open the release`}
+        onclick={() => update && api.openUpdate(update.url).catch((e) => (error = String(e)))}
+        transition:fade
+      >
+        <Icon name="download" size={13} />
+        {update.version} available
+      </button>
+    {/if}
+    <button
+      type="button"
+      class="icon keys"
+      class:hidden={isAndroid && !padConnected}
+      title={padConnected ? "Controller buttons (Select)" : "Keyboard shortcuts (?)"}
+      onclick={() => (showKeys = true)}
+    >
+      ?
+    </button>
     <DownloadsButton bind:this={downloadsBtn} {jobs} onError={(m) => (error = m)} />
     <button type="button" class="icon" onclick={openSettings} title="Settings ({mod} ,)">
       <Icon name="gear" size={16} />
@@ -1079,21 +1408,26 @@
     <main onpointerover={onPointerOver} onscrollcapture={onListScroll}>
       {#if listing}
         <section class="hero" style="--tint: {tint}">
-          <HeroCollage slug={listingSlug(listing.url)} titles={artTitles ? [...artTitles] : []} />
-          <div class="hero-text">
+          <HeroCollage slug={listingSlug(listing.url)} titles={artTitles ? [...artTitles] : []} slim={compact} />
+          {#key listing.url}
+          <div class="hero-text" in:fly={{ x: slideDir * 40, duration: slideDir ? 260 : 0 }}>
             <div class="eyebrow">{currentConsole?.group ?? listing.crumbs.at(-2)?.name ?? "Minerva"}</div>
             <h1>{currentConsole?.name ?? listing.crumbs.at(-1)?.name ?? "Browse"}</h1>
             <div class="stats">
               {#if gameCount}
                 <div><b>{gameCount.toLocaleString()}</b><span>games</span></div>
                 <div><b>{formatBytes(totalBytes)}</b><span>total</span></div>
+                {#if compact && visibleFiles.length !== gameCount}
+                  <div><b>{visibleFiles.length.toLocaleString()}</b><span>shown</span></div>
+                {/if}
               {/if}
               {#if folderCount && !gameCount}
                 <div><b>{folderCount}</b><span>folders</span></div>
               {/if}
             </div>
           </div>
-          {#if spotlight}
+          {/key}
+          {#if spotlight && !compact}
             {#key spotlight.title}
               <div class="spot" in:fade={{ duration: 400 }}>
                 <button class="spot-main" onclick={openSpotlight} title="View details">
@@ -1145,18 +1479,53 @@
               <Icon name="grid" size={14} />
             </button>
           </div>
+          {#if compact}
+            {#if allRegions.length > 1}
+              <button
+                class="toggle"
+                class:on={regionSel.size > 0}
+                aria-expanded={panel === "regions"}
+                title="Filter by region"
+                onclick={() => togglePanel("regions")}
+              >
+                {#each [...regionSel].slice(0, 3) as r (r)}<Flag region={r} height={11} />{:else}<Icon
+                    name="globe"
+                    size={14}
+                  />{/each}
+                Region{regionSel.size > 3 ? ` +${regionSel.size - 3}` : ""}
+              </button>
+            {/if}
+            <button class="toggle" aria-expanded={panel === "sort"} title="Sort" onclick={() => togglePanel("sort")}>
+              <Icon name={sortBy === "rating" ? "star" : "sort"} size={14} />
+              {SORTS.find(([v]) => v === sortValue)?.[1] ?? "Sort"}
+            </button>
+          {/if}
           <label class="filter">
             <Icon name="search" size={14} />
             <input bind:this={filterEl} bind:value={query} spellcheck="false" placeholder="Filter" />
-            {#if !query && !isAndroid}<kbd class="in-field">/</kbd>{/if}
+            {#if !query && padConnected}<PadButton name="Y" class="in-field" />{:else if !query && !isAndroid}<kbd
+                class="in-field">/</kbd
+              >{/if}
           </label>
-          <button class="icon keys" class:hidden={isAndroid} title="Keyboard shortcuts (?)" onclick={() => (showKeys = true)}>
-            <kbd>?</kbd>
-          </button>
         </div>
 
-        {#if allRegions.length > 1}
-          <div class="regions">
+        {#if compact && panel === "sort"}
+          <div class="regions wrap" transition:slide={{ duration: 180 }} onintroend={measureChrome} onoutroend={measureChrome}>
+            {#each SORTS as [v, label] (v)}
+              <button class="chip" class:on={sortValue === v} onclick={() => ((panel = ""), pickSort(v))}>
+                {#if v === "rating:1"}<Icon name="star" size={12} />{/if}{label}
+              </button>
+            {/each}
+          </div>
+        {/if}
+        {#if allRegions.length > 1 && (!compact || panel === "regions")}
+          <div
+            class="regions"
+            class:wrap={compact}
+            transition:slide={{ duration: compact ? 180 : 0 }}
+            onintroend={measureChrome}
+            onoutroend={measureChrome}
+          >
             {#each allRegions as r (r)}
               {@const n = regionCounts.get(r) ?? 0}
               <button
@@ -1170,12 +1539,12 @@
               </button>
             {/each}
             {#if regionSel.size}
-              <button class="text clear" onclick={() => regionSel.clear()}>Clear</button>
+              <button class="text clear" onclick={clearRegions}>Clear</button>
             {/if}
           </div>
         {/if}
 
-        <div class="colhead" bind:this={colheadEl}>
+        <div class="colhead" class:gone={compact} bind:this={colheadEl}>
           <span class="lead">
             <input
               type="checkbox"
@@ -1213,7 +1582,11 @@
             {versionCounts}
             ratings={cardRatings}
             introKey={listing.url}
+            introDir={slideDir}
             downloaded={cardDownloaded}
+            brief={compact}
+            quiet={isAndroid && padConnected}
+            {coverRatio}
             bind:cols={gridCols}
             {cursor}
             entries={filtered}
@@ -1249,7 +1622,9 @@
             <div class="grow"></div>
             <button class="text" onclick={() => selected.clear()}>Clear</button>
             <button class="primary" onclick={() => download(selectedEntries)} disabled={!!engineError}>
-              <Icon name="download" size={15} /> Download {#if !isAndroid}<kbd class="on-accent">{mod}↵</kbd>{/if}
+              <Icon name="download" size={15} /> Download {#if padConnected}<PadButton name="X" onAccent />{:else if !isAndroid}<kbd
+                  class="on-accent">{mod}↵</kbd
+                >{/if}
             </button>
           </div>
         {/if}
@@ -1265,7 +1640,7 @@
   </div>
 </div>
 
-<svelte:window onkeydown={onGlobalKey} />
+<svelte:window onkeydown={onGlobalKey} bind:innerHeight={winH} />
 
 {#if showKeys}
   <div class="modal-bg" role="presentation" onclick={() => (showKeys = false)}>
@@ -1273,7 +1648,11 @@
       <h2>{isAndroid ? "Controller buttons" : "Keyboard shortcuts"}</h2>
       <dl>
         {#each isAndroid ? PAD_BUTTONS : SHORTCUTS as [k, what]}
-          <dt>{#each k.split("  or  ") as part, i}{#if i}<span class="or">or</span>{/if}{#each part.split(" ") as key}<kbd>{key}</kbd>{/each}{/each}</dt>
+          <dt>
+            {#each k.split("  or  ") as part, i}{#if i}<span class="or">or</span>{/if}{#each part.split(" ") as key}{#if isAndroid}<PadButton
+                    name={key}
+                  />{:else}<kbd>{key}</kbd>{/if}{/each}{/each}
+          </dt>
           <dd>{what}</dd>
         {/each}
       </dl>
@@ -1381,6 +1760,29 @@
           <button type="button" class="secondary" onclick={browseFetchDir}>Browse</button>
         </div>
         <small>To publish what you fetch, choose your project's <code>data/</code> folder and commit it.</small>
+      </label>
+      {#if isAndroid}
+        <label class="check-row">
+          <input type="checkbox" bind:checked={settings.haptics} />
+          <div>
+            Rumble
+            <small>A light buzz when moving through games, switching consoles and downloading.</small>
+          </div>
+        </label>
+      {/if}
+      <label class="check-row">
+        <input type="checkbox" bind:checked={settings.checkUpdates} />
+        <div>
+          Tell me about updates
+          <small>Checks GitHub for a newer Owlcart when the app starts. Nothing is installed for you.</small>
+        </div>
+      </label>
+      <label class="check-row">
+        <input type="checkbox" bind:checked={settings.sounds} />
+        <div>
+          Menu sounds
+          <small>Soft clicks and chimes as you move around and download.</small>
+        </div>
       </label>
       <label class="check-row">
         <input type="checkbox" bind:checked={settings.hideWithoutArt} />
@@ -1945,13 +2347,31 @@
     color: var(--muted);
     position: relative;
   }
-  .filter .in-field {
+  .filter :global(.in-field) {
     position: absolute;
     right: 7px;
     pointer-events: none;
   }
-  .keys kbd {
-    cursor: pointer;
+  .keys {
+    font: 700 15px var(--display);
+  }
+  /* A newer version is out (see check_update). */
+  .update {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 11px;
+    border: 0;
+    border-radius: 13px;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .update:active {
+    transform: scale(0.95);
   }
   .keys-modal {
     width: min(460px, 90vw);
@@ -2011,10 +2431,11 @@
   .chip:hover {
     border-color: var(--accent);
   }
+  /* In the console's colour (see `tint`). */
   .chip.on {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: var(--on-accent);
+    background: var(--tint);
+    border-color: var(--tint);
+    color: #fff;
   }
   .chip.on span {
     color: inherit;
@@ -2286,6 +2707,63 @@
   }
   :global(html.android) .selbar {
     padding: 10px 14px;
+  }
+  /* Compact (see `compact`): the banner shrinks to one line, the path and up
+     button go (the console picker moves between consoles), and the column
+     header goes (sorting is in the toolbar). The header stays in the page at
+     no height: the slide-away measures to it. */
+  .compact .hero {
+    min-height: 0;
+    padding: 8px 14px;
+  }
+  .compact .hero-text {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    min-width: 0;
+  }
+  .compact h1 {
+    margin: 0;
+    font-size: 20px;
+    white-space: nowrap;
+  }
+  .compact .stats {
+    margin-top: 0;
+    gap: 14px;
+  }
+  .compact .crumbs {
+    display: none;
+  }
+  .compact .filter {
+    flex: 1;
+  }
+  .compact .filter input {
+    width: 100%;
+    min-width: 0;
+  }
+  .regions.wrap {
+    flex-wrap: wrap;
+  }
+  /* A little squash when pressed. */
+  .toggle,
+  .chip,
+  .seg button,
+  .titlebar .icon {
+    transition-property: background, border-color, color, opacity, transform;
+    transition-duration: 0.15s;
+  }
+  .toggle:active,
+  .chip:active,
+  .seg button:active,
+  .titlebar .icon:active {
+    transform: scale(0.93);
+  }
+  .colhead.gone {
+    height: 0;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    visibility: hidden;
   }
   /* Narrow screens (phones in portrait): the console picker already says
      where you are, so drop the breadcrumbs and let the filter stretch. */

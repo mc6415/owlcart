@@ -1,6 +1,6 @@
 {
   "name": "owlcart",
-  "version": "0.6.0",
+  "version": "0.7.5",
   "description": "Browse Minerva Archive console listings and download single games via torrent, with cover art and game details.",
   "type": "module",
   "scripts": {

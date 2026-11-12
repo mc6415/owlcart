@@ -2,7 +2,7 @@
 //! game details (IGDB) for whole consoles and writes them to a local data
 //! folder in the same layout as the published data (see data.rs).
 
-use crate::covers::{Covers, MATCH_THRESHOLD, match_score, search_query};
+use crate::covers::{Covers, MATCH_THRESHOLD, igdb_match_score, search_query};
 use crate::data::title_bucket;
 use crate::scrape::{self, EntryKind};
 use anyhow::{Context, Result, anyhow, bail};
@@ -319,7 +319,7 @@ impl Igdb {
                 .flatten()
                 .filter_map(|a| a["name"].as_str());
             for n in g["name"].as_str().into_iter().chain(alts) {
-                let s = match_score(&query, n);
+                let s = igdb_match_score(&query, n);
                 // On a tie (IGDB sometimes has two entries with the same
                 // name), take the one more people have reviewed.
                 let reviews = |g: &Value| g["total_rating_count"].as_u64().unwrap_or(0);
