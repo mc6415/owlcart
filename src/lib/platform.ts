@@ -15,12 +15,15 @@ export const isAndroid = typeof navigator !== "undefined" && /Android/i.test(nav
  * highlighted since.
  */
 export function dropFocusOnTap(el: HTMLElement) {
-  const up = () => {
+  // On the click, not pointerup: with touch, focus only moves to the tapped
+  // element after the finger lifts. Captured, so it also runs for buttons
+  // that stop their clicks from bubbling.
+  const drop = () => {
     const f = document.activeElement;
     if (f instanceof HTMLElement && f !== el && el.contains(f)) f.blur();
   };
-  el.addEventListener("pointerup", up);
-  return { destroy: () => el.removeEventListener("pointerup", up) };
+  el.addEventListener("click", drop, true);
+  return { destroy: () => el.removeEventListener("click", drop, true) };
 }
 
 export function onScreenHeight(el: HTMLElement): number {
