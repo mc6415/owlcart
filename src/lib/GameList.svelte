@@ -7,6 +7,7 @@
   import ProgressRing from "./ProgressRing.svelte";
   import { reduceMotion } from "./motion";
   import { isAndroid, onScreenHeight } from "./platform";
+  import { ratingTier } from "./rating";
 
   interface Props {
     entries: Entry[];
@@ -196,7 +197,7 @@
             <span class="score">
               {#if ratings.get(e.url)}
                 {@const [r, count] = ratings.get(e.url)!}
-                <b title="IGDB rating, from {count} {count === 1 ? 'review' : 'reviews'}">{r}</b>
+                <b class={ratingTier(r)} title="IGDB rating, from {count} {count === 1 ? 'review' : 'reviews'}">{r}</b>
               {/if}
             </span>
             <span class="size">{e.size}</span>
@@ -263,7 +264,8 @@
   .row.odd {
     background: var(--stripe);
   }
-  .row:hover {
+  /* Not on Android, where a tap counts as hovering until the next one. */
+  :global(html:not(.android)) .row:hover {
     background: var(--hover);
   }
   .row.sel {
@@ -312,6 +314,18 @@
     background: var(--chip);
     color: var(--text);
     font: 600 11px var(--mono);
+  }
+  .score b.good {
+    background: rgb(28 150 84 / 0.88);
+    color: #fff;
+  }
+  .score b.mid {
+    background: rgb(196 132 16 / 0.88);
+    color: #fff;
+  }
+  .score b.low {
+    background: rgb(184 52 52 / 0.88);
+    color: #fff;
   }
   .tag.versions {
     color: var(--accent);

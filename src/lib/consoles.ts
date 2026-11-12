@@ -13,6 +13,9 @@ export interface ConsoleInfo {
   igdb?: string;
   /** Collections holding this console's updates and DLC. */
   addons?: AddonCollection[];
+  /** The shape of its box art, height / width: 1 for PlayStation's square
+   *  cases, 0.73 for SNES's wide boxes. Measured from the libretro covers. */
+  coverRatio?: number;
   /** Present when the game data has covers/details for this console. */
   titles?: number;
   covers?: number;
@@ -30,6 +33,7 @@ export async function loadConsoles(): Promise<ConsoleInfo[]> {
     listing: c.listing,
     igdb: c.igdb,
     addons: (c as { addons?: AddonCollection[] }).addons,
+    coverRatio: (c as { coverRatio?: number }).coverRatio,
   }));
   try {
     const index = await api.consoleIndex();

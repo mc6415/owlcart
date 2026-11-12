@@ -22,6 +22,23 @@ use url::Url;
 /// the engine also writes fragments of neighbouring files in the torrent.
 const PARTIAL_DIR: &str = ".owlcart-partial";
 
+/// A listing saved on disk (see Manager::fetch_listing).
+#[derive(Serialize, Deserialize)]
+struct CachedListing {
+    /// The server's Last-Modified header, sent back to ask whether it changed.
+    modified: Option<String>,
+    /// When it was last checked (Unix seconds).
+    checked: u64,
+    listing: Listing,
+}
+
+fn unix_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
@@ -54,6 +71,15 @@ pub struct Settings {
     /// Where cover manifests live: a URL or local folder holding <slug>.json files.
     #[serde(default = "default_data_url", alias = "coversUrl")]
     pub data_url: String,
+    /// Rumble on Android (moving through games, downloads).
+    #[serde(default = "yes")]
+    pub haptics: bool,
+    /// Soft menu sounds.
+    #[serde(default)]
+    pub sounds: bool,
+    /// Ask GitHub whether there's a newer Owlcart when the app starts.
+    #[serde(default = "yes")]
+    pub check_updates: bool,
 }
 
 /// Published game data (covers + details). Set this once the data/ folder is hosted.
@@ -89,6 +115,9 @@ impl Default for Settings {
             extract_archives: true,
             delete_archives: true,
             data_url: default_data_url(),
+            haptics: true,
+            sounds: false,
+            check_updates: true,
         }
     }
 }
@@ -262,10 +291,105 @@ impl Manager {
         Ok(resp.text().await?)
     }
 
+    /// The shared HTTP client (with Owlcart's User-Agent).
+    pub fn http(&self) -> &reqwest::Client {
+        &self.http
+    }
+
+    // ---- console listings ----
+    //
+    // Listing pages are big (several MB for the larger consoles) and rarely
+    // change, so each one is kept on disk with the server's Last-Modified date.
+    // A console opened before shows straight from there, then a conditional
+    // request checks for changes, which costs next to nothing when there are none.
+
+    fn listing_cache_path(&self, url: &Url) -> PathBuf {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        url.as_str().hash(&mut h);
+        self.cache_dir.join("listings").join(format!("{:016x}.json", h.finish()))
+    }
+
+    async fn read_cached_listing(&self, url: &Url) -> Option<CachedListing> {
+        let bytes = tokio::fs::read(self.listing_cache_path(url)).await.ok()?;
+        serde_json::from_slice(&bytes).ok()
+    }
+
+    async fn write_cached_listing(&self, url: &Url, c: &CachedListing) {
+        let path = self.listing_cache_path(url);
+        if let Some(dir) = path.parent() {
+            let _ = tokio::fs::create_dir_all(dir).await;
+        }
+        if let Ok(bytes) = serde_json::to_vec(c) {
+            let _ = tokio::fs::write(path, bytes).await;
+        }
+    }
+
+    /// The listing as last downloaded, if this console was opened before.
+    pub async fn cached_listing(&self, url: &str) -> Result<Option<Listing>> {
+        let url = Url::parse(url.trim()).context("not a valid URL")?;
+        Ok(self.read_cached_listing(&url).await.map(|c| c.listing))
+    }
+
+    /// Downloads the listing (or confirms the saved copy is current) and saves
+    /// it. Also says whether it differs from the saved copy.
+    async fn fetch_listing(&self, url: &Url) -> Result<(Listing, bool)> {
+        let cached = self.read_cached_listing(url).await;
+        let mut req = self.http.get(url.clone());
+        if let Some(m) = cached.as_ref().and_then(|c| c.modified.as_deref()) {
+            req = req.header(reqwest::header::IF_MODIFIED_SINCE, m);
+        }
+        let resp = req.send().await?;
+        let now = unix_now();
+        if resp.status() == reqwest::StatusCode::NOT_MODIFIED
+            && let Some(mut c) = cached
+        {
+            c.checked = now;
+            self.write_cached_listing(url, &c).await;
+            return Ok((c.listing, false));
+        }
+        let resp = resp.error_for_status()?;
+        let modified = resp
+            .headers()
+            .get(reqwest::header::LAST_MODIFIED)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string);
+        let html = resp.text().await?;
+        let listing = scrape::parse_listing(&html, url)?;
+        let changed = cached.is_none_or(|c| c.modified.is_none() || c.modified != modified);
+        let c = CachedListing { modified, checked: now, listing };
+        self.write_cached_listing(url, &c).await;
+        Ok((c.listing, changed))
+    }
+
     pub async fn load_listing(&self, url: &str) -> Result<Listing> {
         let url = Url::parse(url.trim()).context("not a valid URL")?;
-        let html = self.get_text(&url).await?;
-        scrape::parse_listing(&html, &url)
+        Ok(self.fetch_listing(&url).await?.0)
+    }
+
+    /// Checks a saved listing for changes: the new listing if there are any.
+    /// Checked at most every few minutes per console.
+    pub async fn refresh_listing(&self, url: &str) -> Result<Option<Listing>> {
+        const RECHECK_SECS: u64 = 10 * 60;
+        let url = Url::parse(url.trim()).context("not a valid URL")?;
+        if let Some(c) = self.read_cached_listing(&url).await
+            && unix_now().saturating_sub(c.checked) < RECHECK_SECS
+        {
+            return Ok(None);
+        }
+        let (listing, changed) = self.fetch_listing(&url).await?;
+        Ok(changed.then_some(listing))
+    }
+
+    /// A listing ahead of time (the consoles either side of this one, so
+    /// switching with L2 / R2 is instant): the saved copy, or downloaded and
+    /// saved if there isn't one yet.
+    pub async fn prefetch_listing(&self, url: &str) -> Result<Listing> {
+        let url = Url::parse(url.trim()).context("not a valid URL")?;
+        match self.read_cached_listing(&url).await {
+            Some(c) => Ok(c.listing),
+            None => Ok(self.fetch_listing(&url).await?.0),
+        }
     }
 
     // ---- settings ----

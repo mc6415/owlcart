@@ -1,12 +1,16 @@
 package dev.owlcart.app
 
+import android.app.ActivityOptions
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
+import android.view.Display
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
@@ -19,8 +23,51 @@ class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     hideSystemBars()
+    if (moveToMainScreen()) return
     askForAllFilesAccess()
   }
+
+  override fun onResume() {
+    super.onResume()
+    moveToMainScreen()
+  }
+
+  // Opening the app again from the second screen moves it there without
+  // resuming it, so check once the move has happened.
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    window.decorView.postDelayed({ moveToMainScreen() }, 300)
+  }
+
+  override fun onConfigurationChanged(newConfig: Configuration) {
+    super.onConfigurationChanged(newConfig)
+    window.decorView.post { moveToMainScreen() }
+  }
+
+  private var lastMove = 0L
+
+  /**
+   * Dual-screen devices (like the AYN Thor): a launcher on the second screen
+   * can open the app there, under its own game panel (see SecondScreenPlugin).
+   * Move it to the main screen instead. Returns whether it's moving.
+   */
+  private fun moveToMainScreen(): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
+    if (displayId() == Display.DEFAULT_DISPLAY) return false
+    // If Android won't move it, don't keep asking on every resume.
+    val now = SystemClock.elapsedRealtime()
+    if (now - lastMove < 3000) return false
+    lastMove = now
+    Log.i("OwlcartScreen", "opened on display ${displayId()}, moving to the main screen")
+    val options = ActivityOptions.makeBasic().setLaunchDisplayId(Display.DEFAULT_DISPLAY)
+    startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), options.toBundle())
+    return true
+  }
+
+  @Suppress("DEPRECATION")
+  private fun displayId(): Int =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display?.displayId ?: Display.DEFAULT_DISPLAY
+    else windowManager.defaultDisplay.displayId
 
   // Bars can come back after the folder picker or a settings screen, so hide
   // them again whenever the app returns to the front.
@@ -76,6 +123,9 @@ class MainActivity : TauriActivity() {
     // Using the D-pad gives the web view focus, and Android then tints the
     // whole view to show it. The page shows its own highlight, so turn that off.
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) web?.defaultFocusHighlightEnabled = false
+    // Menu sounds (when switched on) play from controller presses too, which
+    // the web view doesn't count as the tap it normally wants before audio.
+    web?.settings?.mediaPlaybackRequiresUserGesture = false
     return web
   }
 

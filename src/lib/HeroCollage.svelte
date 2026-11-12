@@ -4,7 +4,8 @@
   import { reduceMotion } from "./motion";
 
   // A slow-drifting wall of the console's covers behind its header.
-  let { slug, titles }: { slug: string; titles: string[] } = $props();
+  // `slim`: behind a one-line header, smaller and softer.
+  let { slug, titles, slim = false }: { slug: string; titles: string[]; slim?: boolean } = $props();
 
   const COUNT = 16;
   let urls = $state<string[]>([]);
@@ -31,7 +32,7 @@
 
 {#if urls.length >= 6}
   {#key slug}
-    <div class="collage" class:still={reduceMotion} transition:fade={{ duration: 600 }} aria-hidden="true">
+    <div class="collage" class:still={reduceMotion} class:slim transition:fade={{ duration: 600 }} aria-hidden="true">
       {#each [rowA, rowB] as row, r}
         <div class="row" class:reverse={r === 1}>
           {#each [...row, ...row] as u}
@@ -55,6 +56,7 @@
     opacity: 0.75;
     filter: saturate(1.2) blur(0.6px);
     /* Fade out toward the console name so the text stays clear. */
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 35%, black 80%, transparent 100%);
     mask-image: linear-gradient(to right, transparent 0%, black 35%, black 80%, transparent 100%);
     pointer-events: none;
   }
@@ -67,6 +69,22 @@
   .row.reverse {
     animation-direction: reverse;
     margin-left: -60px;
+  }
+  .slim {
+    inset: -30px -20px -30px 52%;
+    gap: 8px;
+    opacity: 0.5;
+    filter: saturate(1.3) blur(1.2px);
+    overflow: hidden;
+  }
+  .slim .row {
+    gap: 8px;
+  }
+  .slim .row.reverse {
+    margin-left: 0;
+  }
+  .slim img {
+    width: 58px;
   }
   .still .row {
     animation: none;

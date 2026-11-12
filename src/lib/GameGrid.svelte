@@ -8,6 +8,7 @@
   import ProgressRing from "./ProgressRing.svelte";
   import { reduceMotion } from "./motion";
   import { isAndroid, onScreenHeight } from "./platform";
+  import { ratingTier } from "./rating";
 
   interface Props {
     entries: Entry[];
@@ -35,6 +36,15 @@
     justDone?: Set<string>;
     /** Changes when a new console opens, to play the entrance animation. */
     introKey?: string;
+    /** -1 / 1: the new console's cards slide in from the left / right. */
+    introDir?: number;
+    /** Title-only captions, when another screen shows the rest. */
+    brief?: boolean;
+    /** The console's box shape, height / width (2:3 by default). */
+    coverRatio?: number;
+    /** Controller in hand: only the highlighted card shows its buttons and
+     *  flags (select circles show on every card while some are selected). */
+    quiet?: boolean;
   }
   let {
     entries,
@@ -52,19 +62,26 @@
     versionCounts = new Map(),
     ratings = new Map(),
     introKey = "",
+    introDir = 0,
+    brief = false,
+    quiet = false,
+    coverRatio = 1.5,
   }: Props = $props();
 
   // Smaller cards and gaps on Android, so phones in portrait get 2+ columns.
   const PAD = isAndroid ? 10 : 14;
   const GAP = isAndroid ? 10 : 14;
   const MIN_CARD = isAndroid ? 104 : 150;
-  const CAPTION = 50;
+  let caption = $derived(brief ? 30 : 50);
 
   let scrollTop = $state(0);
   let height = $state(400);
   let width = $state(800);
 
-  let colCount = $derived(Math.max(1, Math.floor((width - PAD * 2 + GAP) / (MIN_CARD + GAP))));
+  // Squarer and wider boxes get wider cards, so every console's covers are
+  // about the same size on screen.
+  let minCard = $derived(MIN_CARD * Math.sqrt(1.5 / coverRatio));
+  let colCount = $derived(Math.max(1, Math.floor((width - PAD * 2 + GAP) / (minCard + GAP))));
   $effect(() => {
     cols = colCount;
   });
@@ -79,8 +96,8 @@
     else if (top + rowH > viewport.scrollTop + shown) viewport.scrollTop = top + rowH - shown;
   });
   let cardW = $derived((width - PAD * 2 - GAP * (colCount - 1)) / colCount);
-  let coverH = $derived(Math.round(cardW * 1.5)); // 2:3, SteamGridDB's portrait shape
-  let rowH = $derived(coverH + CAPTION + GAP);
+  let coverH = $derived(Math.round(cardW * coverRatio));
+  let rowH = $derived(coverH + caption + GAP);
   let rows = $derived(Math.ceil(entries.length / colCount));
 
   let firstRow = $derived(Math.max(0, Math.floor(scrollTop / rowH) - 2));
@@ -112,6 +129,8 @@
     if (reduceMotion) return;
     let frame = 0;
     const move = (ev: PointerEvent) => {
+      // Touch would leave the last-touched cover tilted; tilt for the mouse only.
+      if (ev.pointerType !== "mouse") return;
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         const r = el.getBoundingClientRect();
@@ -159,12 +178,14 @@
         duration: 380,
         delay: Math.min(k * 28, 520),
         easing: (t: number) => 1 - Math.pow(1 - t, 3),
-        css: (t: number) => `opacity: ${t}; transform: translateY(${(1 - t) * 18}px) scale(${0.96 + t * 0.04})`,
+        css: (t: number) =>
+          `opacity: ${t}; transform: translate(${(1 - t) * introDir * 60}px, ${introDir ? 0 : (1 - t) * 18}px) scale(${0.96 + t * 0.04})`,
       };
     }
+    // Sorted or filtered: the newly shown cards ripple in.
     return {
       duration: animating ? 220 : 0,
-      delay: animating ? 60 : 0,
+      delay: animating ? 60 + Math.min(k * 16, 240) : 0,
       css: (t: number) => `opacity: ${t}; transform: scale(${0.94 + t * 0.06})`,
     };
   }
@@ -188,7 +209,7 @@
   bind:clientWidth={width}
   onscroll={(e) => (scrollTop = e.currentTarget.scrollTop)}
 >
-  <div class="spacer" class:animating style="height: {rows * rowH + PAD}px">
+  <div class="spacer" class:animating class:quiet class:selecting={selected.size > 0} style="height: {rows * rowH + PAD}px">
     {#each visible as { e, i }, k (e.url)}
       {@const x = PAD + (i % colCount) * (cardW + GAP)}
       {@const y = PAD + Math.floor(i / colCount) * rowH}
@@ -238,7 +259,7 @@
             </button>
             {#if ratings.get(e.url)}
               {@const [r, count] = ratings.get(e.url)!}
-              <span class="score" title="IGDB rating, from {count} {count === 1 ? 'review' : 'reviews'}">{r}</span>
+              <span class="score {ratingTier(r)}" title="IGDB rating, from {count} {count === 1 ? 'review' : 'reviews'}">{r}</span>
             {/if}
             {#if n.regions.length}
               <span class="flags">
@@ -268,13 +289,15 @@
           </div>
           <div class="caption">
             <div class="name">{n.title}</div>
-            <div class="sub">
-              {#if (versionCounts.get(e.url) ?? 1) > 1}
-                {versionCounts.get(e.url)} versions<span>· {e.size}</span>
-              {:else}
-                {e.size}{#each n.tags.filter((t) => t !== n.regions.join(", ")) as t}<span>· {t}</span>{/each}
-              {/if}
-            </div>
+            {#if !brief}
+              <div class="sub">
+                {#if (versionCounts.get(e.url) ?? 1) > 1}
+                  {versionCounts.get(e.url)} versions<span>· {e.size}</span>
+                {:else}
+                  {e.size}{#each n.tags.filter((t) => t !== n.regions.join(", ")) as t}<span>· {t}</span>{/each}
+                {/if}
+              </div>
+            {/if}
           </div>
         </div>
       {/if}
@@ -316,9 +339,15 @@
     transform: perspective(700px) rotateX(var(--rx)) rotateY(var(--ry));
     transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s;
   }
-  .card:hover .art {
+  /* Lifted under the mouse or the keyboard / D-pad highlight. Android only
+     lifts the highlight: there a tap counts as hovering until the next one,
+     which left the last-touched cover lifted. */
+  :global(html:not(.android)) .card:hover .art,
+  .card.cursor .art {
     transform: perspective(700px) rotateX(var(--rx)) rotateY(var(--ry)) translateY(-4px) scale(1.02);
     transition: transform 0.12s ease-out, box-shadow 0.2s;
+  }
+  :global(html:not(.android)) .card:not(.cursor):hover .art {
     box-shadow: none;
   }
   /* A soft highlight that follows the pointer across the cover. */
@@ -333,7 +362,8 @@
     opacity: 0;
     transition: opacity 0.25s;
   }
-  .card:hover .glare {
+  :global(html:not(.android)) .card:hover .glare,
+  .card.cursor .glare {
     opacity: 1;
   }
   .ring {
@@ -376,7 +406,8 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .art,
-    .card:hover .art {
+    :global(html:not(.android)) .card:hover .art,
+    .card.cursor .art {
       transform: none;
     }
     .just-done .art::after,
@@ -384,8 +415,27 @@
       animation: none;
     }
   }
-  .cursor .art {
-    box-shadow: 0 0 0 2px var(--text), 0 0 26px color-mix(in srgb, var(--text) 25%, transparent);
+  /* The highlight: a ring in the console's colour (--tint, set by the page)
+     with a light sweeping slowly round. */
+  .cursor .art::before {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    z-index: -1;
+    border-radius: 13px;
+    background: linear-gradient(120deg, var(--tint, var(--accent)), #fff, var(--accent), var(--tint, var(--accent))) 0 0 /
+      300% 100%;
+    animation: ring 4s linear infinite;
+  }
+  @keyframes ring {
+    to {
+      background-position: 300% 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cursor .art::before {
+      animation: none;
+    }
   }
   .sel .art {
     box-shadow: 0 0 0 2px var(--accent), 0 0 30px color-mix(in srgb, var(--accent) 55%, transparent);
@@ -406,7 +456,7 @@
     opacity: 0;
     transition: opacity 0.15s;
   }
-  .card:hover .check {
+  :global(html:not(.android)) .card:hover .check {
     opacity: 1;
   }
   .sel .check {
@@ -422,6 +472,17 @@
     display: flex;
     gap: 3px;
   }
+  /* Quiet: buttons and flags on the highlighted card only. Beats the Android
+     rule above that keeps the buttons showing. */
+  .quiet .card:not(.cursor) .dl,
+  .quiet:not(.selecting) .card:not(.cursor):not(.sel) .check,
+  .quiet .card:not(.cursor) .flags {
+    opacity: 0 !important;
+    pointer-events: none;
+  }
+  .quiet .flags {
+    transition: opacity 0.15s;
+  }
   .score {
     position: absolute;
     left: 8px;
@@ -432,6 +493,15 @@
     color: #fff;
     font: 600 11px var(--mono);
     backdrop-filter: blur(4px);
+  }
+  .score.good {
+    background: rgb(28 150 84 / 0.88);
+  }
+  .score.mid {
+    background: rgb(196 132 16 / 0.88);
+  }
+  .score.low {
+    background: rgb(184 52 52 / 0.88);
   }
   .dl {
     position: absolute;
@@ -464,7 +534,8 @@
     opacity: 1 !important;
     transform: none !important;
   }
-  .card:hover .dl,
+  :global(html:not(.android)) .card:hover .dl,
+  .card.cursor .dl,
   .dl:focus-visible {
     opacity: 1;
     transform: none;
@@ -519,9 +590,6 @@
     color: var(--muted);
     padding: 16px 14px;
     margin: 0;
-  }
-  :global(html.no-color-mix) .cursor .art {
-    box-shadow: 0 0 0 2px var(--text);
   }
   :global(html.no-color-mix) .sel .art {
     box-shadow: 0 0 0 2px var(--accent);

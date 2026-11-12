@@ -5,9 +5,11 @@ mod engine;
 mod extract;
 mod fetch;
 mod folder_picker;
+mod gamepad;
 mod jobs;
 mod scrape;
 mod second_screen;
+mod update;
 
 use jobs::{EnqueueItem, Job, Manager, Settings};
 use scrape::Listing;
@@ -40,6 +42,23 @@ fn engine_status(mgr: State<'_, Mgr>) -> EngineStatus {
 #[tauri::command]
 async fn load_listing(mgr: State<'_, Mgr>, url: String) -> Res<Listing> {
     mgr.load_listing(&url).await.map_err(err)
+}
+
+/// The listing saved from last time, for showing straight away.
+#[tauri::command]
+async fn cached_listing(mgr: State<'_, Mgr>, url: String) -> Res<Option<Listing>> {
+    mgr.cached_listing(&url).await.map_err(err)
+}
+
+/// A newer listing than the saved one, if it changed.
+#[tauri::command]
+async fn refresh_listing(mgr: State<'_, Mgr>, url: String) -> Res<Option<Listing>> {
+    mgr.refresh_listing(&url).await.map_err(err)
+}
+
+#[tauri::command]
+async fn prefetch_listing(mgr: State<'_, Mgr>, url: String) -> Res<Listing> {
+    mgr.prefetch_listing(&url).await.map_err(err)
 }
 
 #[tauri::command]
@@ -164,6 +183,24 @@ async fn second_screen_update(app: tauri::AppHandle, state: serde_json::Value) -
         .map_err(err)
 }
 
+/// A short vibration (Android).
+#[tauri::command]
+async fn rumble(app: tauri::AppHandle, ms: u64, strength: u8) -> Res<()> {
+    tauri::async_runtime::spawn_blocking(move || gamepad::rumble(&app, ms, strength))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(err)
+}
+
+/// Whether a controller is connected (Android).
+#[tauri::command]
+async fn gamepad_connected(app: tauri::AppHandle) -> Res<bool> {
+    tauri::async_runtime::spawn_blocking(move || gamepad::connected(&app))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(err)
+}
+
 /// Android's folder picker; returns the chosen folder's path (None if cancelled).
 #[tauri::command]
 async fn pick_folder(app: tauri::AppHandle) -> Res<Option<String>> {
@@ -183,6 +220,24 @@ async fn open_downloads(app: tauri::AppHandle, mgr: State<'_, Mgr>) -> Res<()> {
         .map_err(|e| e.to_string())
 }
 
+/// A newer Owlcart release, if there is one (and the check is switched on).
+#[tauri::command]
+async fn check_update(mgr: State<'_, Mgr>) -> Res<Option<update::Update>> {
+    if !mgr.settings().await.check_updates {
+        return Ok(None);
+    }
+    update::check(mgr.http()).await.map_err(err)
+}
+
+/// Opens an update link from check_update: only this repo's releases.
+#[tauri::command]
+fn open_update(app: tauri::AppHandle, url: String) -> Res<()> {
+    if !url.starts_with(update::RELEASES) {
+        return Err("not an Owlcart release link".into());
+    }
+    app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn reveal_file(app: tauri::AppHandle, path: String) -> Res<()> {
     app.opener()
@@ -197,6 +252,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(folder_picker::init())
         .plugin(second_screen::init())
+        .plugin(gamepad::init())
         .setup(|app| {
             let config_dir = app.path().app_config_dir()?;
             let cache_dir = app.path().app_cache_dir()?;
@@ -214,6 +270,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             engine_status,
             load_listing,
+            cached_listing,
+            refresh_listing,
+            prefetch_listing,
             enqueue,
             list_jobs,
             pause_job,
@@ -237,6 +296,10 @@ pub fn run() {
             pick_folder,
             second_screen_available,
             second_screen_update,
+            gamepad_connected,
+            rumble,
+            check_update,
+            open_update,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

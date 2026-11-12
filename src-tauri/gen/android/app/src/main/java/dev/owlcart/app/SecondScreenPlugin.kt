@@ -40,9 +40,14 @@ class SecondScreenPlugin(private val activity: Activity) : Plugin(activity) {
     mainWeb = webView
   }
 
+  /** A screen to show the game on: never the one the app itself is on. */
+  @Suppress("DEPRECATION")
   private fun secondDisplay(): Display? {
     val dm = activity.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-    return dm.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION).firstOrNull()
+    val here =
+      if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) activity.display?.displayId
+      else activity.windowManager.defaultDisplay.displayId
+    return dm.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION).firstOrNull { it.displayId != here }
   }
 
   @Command

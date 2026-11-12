@@ -394,7 +394,8 @@
   }
   .cover {
     width: 150px;
-    aspect-ratio: 2 / 3;
+    /* The console's box shape (set by the page). */
+    aspect-ratio: 1 / var(--cover-ratio, 1.5);
     flex-shrink: 0;
     border-radius: 8px;
     overflow: hidden;
