@@ -7,7 +7,7 @@
   import Icon from "./Icon.svelte";
   import ProgressRing from "./ProgressRing.svelte";
   import { reduceMotion } from "./motion";
-  import { isAndroid, onScreenHeight } from "./platform";
+  import { dropFocusOnTap, isAndroid, onScreenHeight } from "./platform";
   import { ratingTier } from "./rating";
 
   interface Props {
@@ -208,6 +208,7 @@
   bind:clientHeight={height}
   bind:clientWidth={width}
   onscroll={(e) => (scrollTop = e.currentTarget.scrollTop)}
+  use:dropFocusOnTap
 >
   <div class="spacer" class:animating class:quiet class:selecting={selected.size > 0} style="height: {rows * rowH + PAD}px">
     {#each visible as { e, i }, k (e.url)}

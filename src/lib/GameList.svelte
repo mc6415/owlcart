@@ -6,7 +6,7 @@
   import { untrack } from "svelte";
   import ProgressRing from "./ProgressRing.svelte";
   import { reduceMotion } from "./motion";
-  import { isAndroid, onScreenHeight } from "./platform";
+  import { dropFocusOnTap, isAndroid, onScreenHeight } from "./platform";
   import { ratingTier } from "./rating";
 
   interface Props {
@@ -133,6 +133,7 @@
   bind:this={viewport}
   bind:clientHeight={height}
   onscroll={(e) => (scrollTop = e.currentTarget.scrollTop)}
+  use:dropFocusOnTap
 >
   <div class="spacer" style="height: {entries.length * ROW}px">
     <div class="rows" class:animating>
