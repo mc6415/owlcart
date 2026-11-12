@@ -5,14 +5,15 @@
 <h1 align="center">Owlcart</h1>
 
 <p align="center">
-  Browse the <a href="https://minerva-archive.org">Minerva Archive</a> by console, see cover art and game details,<br />
-  and download just the games you want, straight into folders your emulator front-end understands.
+  A friendly way to browse the <a href="https://minerva-archive.org">Minerva Archive</a>, see what's worth playing,<br />
+  and grab just the games you want, already sorted into the folders your emulator expects.
 </p>
 
 <p align="center">
   <a href="../../releases/latest"><b>Download</b></a> ·
   <a href="#features">Features</a> ·
   <a href="#keyboard-shortcuts">Shortcuts</a> ·
+  <a href="#controller-buttons">Controller</a> ·
   <a href="#building-from-source">Build</a> ·
   <a href="#game-data">Game data</a>
 </p>
@@ -31,6 +32,7 @@
   <br />
   <img src="https://img.shields.io/badge/Windows-0078D4?logo=windows&logoColor=white" alt="Windows" />
   <img src="https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black" alt="Linux" />
+  <img src="https://img.shields.io/badge/Android-34A853?logo=android&logoColor=white" alt="Android" />
 </p>
 
 <p align="center">
@@ -41,32 +43,76 @@
 
 ## Features
 
-**Find games**
-- 🎮 **Console picker** with 43 systems across Nintendo, Sega, Sony, Microsoft, NEC, SNK, Atari and more (<kbd>Ctrl</kbd> <kbd>K</kbd>)
-- 🖼️ **List or grid view**, with cover art and smooth, animated filtering
-- 🌍 **Region filters** shown as flags, with live counts
-- 🗂️ **One card per game**: every region and revision of a game, even under different titles (*Biohazard 2* and *Resident Evil 2*), is grouped, with your preferred region's latest version first
-- ⭐ **Sort by rating**, using IGDB ratings weighted by how many reviews they're based on
-- 📖 **Game details**: summary, release date, developer, genres, rating and screenshots, plus every regional version side by side
-- 🧩 **Updates & DLC** for Xbox 360, PS3, 3DS and Wii, matched to each game and listed in its details
+Minerva keeps whole console libraries as single torrents, which is great for preservation
+and less great when you just want *Suikoden II*. Owlcart puts a proper game browser on top:
+pick a console, find the game, press download, and that one game turns up in the right
+folder, unzipped and checked.
 
-**Download them**
-- ⚡ **Single games from huge torrents**: Owlcart fetches only the file you pick, not the whole console set
-- 📁 **ES-DE folder names** (`psx`, `gbc`, `n64`, `xbox360`…) so games drop straight into ES-DE, Batocera and similar
-- 📦 **Automatic extraction** of `.zip` files, with every file checked against its checksum
-- ✅ **Already-downloaded games are marked**, including ones from before you installed Owlcart
-- 🔔 **Downloads popover** with progress, speed, pause, resume and retry
+### Finding something to play
+
+Choose from 43 consoles (<kbd>Ctrl</kbd> <kbd>K</kbd>), then browse as a list or a grid of
+cover art. Every game gets one card, however many regions and revisions it came out in, so
+*Biohazard 2* and *Resident Evil 2* sit together, and so do *Tomorrow Never Dies* and
+*Der Morgen Stirbt Nie*. Your own region's latest version comes first.
+
+You can narrow things down by name or by region. The region filter starts on USA, Europe,
+Japan and worldwide releases, and remembers whatever you change it to. *Games only* hides the
+demos, betas and prototypes, and sorting by rating puts a console's best games first. Ratings
+come from IGDB and take review counts into account, so a game rated 98 by three people doesn't
+beat one rated 95 by hundreds.
+
+Open a game for its summary, release date, developer, genres and screenshots, plus every
+version side by side. Xbox 360, PS3, 3DS and Wii games also list their updates and DLC.
 
 <p align="center">
   <img src="docs/screenshots/details.jpg" width="720" alt="The details window for Mario Kart: Double Dash!!: banner, cover, year, developer, region flags, rating and genres, a summary, screenshots and every version with download buttons" />
   <br />
-  <sub>Click any game for its details and every regional version.</sub>
+  <sub>Click any game to see its details and every regional version.</sub>
 </p>
 
-**Make it yours**
-- 🎨 Light and dark themes that follow your system
-- ⌨️ [Keyboard shortcuts](#keyboard-shortcuts) for everything
-- 🦉 Fetch cover art and details yourself from inside the app (free API keys)
+### Downloading
+
+Owlcart only fetches the file you picked, not the whole multi-hundred-gigabyte console set.
+Games land in [ES-DE](https://es-de.org) style folders (`psx`, `gbc`, `n64`…), so ES-DE,
+Batocera and friends pick them up straight away. Zips are unpacked and every file is checked
+against its checksum. Games you already have are marked, even ones you downloaded before
+Owlcart came along, and the downloads button keeps track of progress with pause, resume and
+retry.
+
+### On handhelds
+
+Owlcart runs on Android too, and it's at its best on a handheld. The D-pad moves through
+games, the face buttons download and search, and <kbd>L2</kbd> <kbd>R2</kbd> flip between
+consoles. The on-screen hints switch to your controller's buttons once it's connected.
+
+If you've got a dual-screen device like the AYN Thor, the second screen joins in. Browse on
+the top screen and the bottom one shows the highlighted game: its details, its versions and a
+slideshow of screenshots. With nothing highlighted, it shows the console's top-rated games
+instead. Open a game's details and the bottom screen becomes a screenshot gallery, with a few
+games like it underneath in case you're after something similar.
+
+A few smaller touches: covers take the shape of each console's real boxes, so PlayStation
+games get square jewel cases and SNES games get wide boxes. Each console has its own colour,
+and you can switch on rumble and menu sounds if you like a bit of feedback.
+
+<table align="center">
+  <tr>
+    <td align="center"><img src="docs/screenshots/thor-browse.jpg" width="400" alt="Owlcart on the AYN Thor: PlayStation games with square jewel-case covers on the top screen, The World Is Not Enough highlighted, and its rating, summary and every regional version (including the German and French titles) on the bottom screen" /><br /><sub>Browse on top, details below. PlayStation's covers are square</sub></td>
+    <td align="center"><img src="docs/screenshots/thor-overview.jpg" width="400" alt="Owlcart on the AYN Thor: SNES games with wide landscape boxes on the top screen, and the console's top-rated games on the bottom screen" /><br /><sub>Nothing highlighted? The console's best. SNES boxes are wide</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/thor-sort.jpg" width="400" alt="Owlcart on the AYN Thor: PlayStation 2 games in tall DVD-case covers, sorted by rating with the sort options open and Final Fantasy X highlighted, and its versions on the bottom screen" /><br /><sub>Sorting by rating, in PS2's tall cases</sub></td>
+    <td align="center"><img src="docs/screenshots/thor-details.jpg" width="400" alt="Owlcart on the AYN Thor: Final Fantasy X's details on the top screen, and a large screenshot gallery with thumbnails and a More like this shelf of RPGs on the bottom screen" /><br /><sub>Details on top, screenshots and similar games below</sub></td>
+  </tr>
+</table>
+
+### And the rest
+
+Light and dark themes follow your system, and there are [keyboard shortcuts](#keyboard-shortcuts)
+for just about everything. When a new version comes out, a little *update available* button
+appears at the top. It takes you to the release (or, on Android, straight to the new APK);
+nothing installs itself, and you can turn the check off in Settings. If a console is missing
+cover art, you can fetch it yourself from inside the app with free API keys.
 
 ## Download
 
@@ -74,21 +120,22 @@ Grab the latest build from [**Releases**](../../releases/latest).
 
 | Platform | File | Notes |
 | --- | --- | --- |
-| **Windows** | `Owlcart_x.y.z_x64-setup.exe` | The installer isn't code-signed yet, so Windows SmartScreen may warn the first time; choose *More info → Run anyway*. |
+| **Windows** | `Owlcart_x.y.z_x64-setup.exe` | The installer isn't code-signed yet, so SmartScreen may warn you the first time. Choose *More info → Run anyway*. |
 | **Linux (Debian, Ubuntu)** | `.deb` | |
 | **Linux (Fedora, openSUSE)** | `.rpm` | |
-| **Linux (anything else)** | `.AppImage` | `chmod +x` and run. |
+| **Linux (anything else)** | `.AppImage` | `chmod +x` it and run. |
+| **Android** | `Owlcart_x.y.z_android_arm64.apk` | For 64-bit ARM phones and handhelds. Android will ask you to allow installs from your browser or file manager. |
 
-Everything is built in, including the BitTorrent engine, so there's nothing else to install.
+The BitTorrent engine is built in, so there's nothing else to install.
 
 ## Getting started
 
 1. **Pick a console** from the picker at the top (<kbd>Ctrl</kbd> <kbd>K</kbd>).
-2. **Find a game**: filter by name (<kbd>/</kbd>), tap region flags, or switch to grid view (<kbd>V</kbd>).
-3. **Click a game** to see its details and every version, then hit **Download**. To grab several at once, tick them and use the selection bar.
-4. Watch progress from the **download button** in the title bar (<kbd>D</kbd>). Finished games land in `Downloads/Owlcart/<console>/`, already unzipped.
+2. **Find a game.** Type to filter (<kbd>/</kbd>), tap a region flag, or switch to the grid (<kbd>V</kbd>).
+3. **Open it** to see its details and versions, then hit **Download**. Want a few? Tick them and use the bar at the bottom.
+4. **Keep an eye on things** with the downloads button in the title bar (<kbd>D</kbd>). Finished games end up in `Downloads/Owlcart/<console>/` (on Android, `ROMs/<console>/` on your main storage), already unzipped.
 
-Everything else, including the download folder, extraction, folder naming and cover art, is in **Settings** (<kbd>Ctrl</kbd> <kbd>,</kbd>).
+The download folder, extraction, folder names and cover art settings all live in **Settings** (<kbd>Ctrl</kbd> <kbd>,</kbd>).
 
 ## Keyboard shortcuts
 
@@ -107,23 +154,49 @@ Everything else, including the download folder, extraction, folder naming and co
 | <kbd>Esc</kbd> | Close, then clear the filter, then the selection |
 | <kbd>?</kbd> | Show all shortcuts |
 
-On macOS, use <kbd>⌘</kbd> instead of <kbd>Ctrl</kbd>.
+On a Mac, use <kbd>⌘</kbd> instead of <kbd>Ctrl</kbd>.
+
+## Controller buttons
+
+On Android, a controller (built in or paired) works like this. Press <kbd>Select</kbd>, or tap
+**?** at the top, to see the list in the app.
+
+| Button | Action |
+| --- | --- |
+| D-pad | Move through games |
+| <kbd>A</kbd> | Open game details |
+| <kbd>B</kbd> | Back |
+| <kbd>X</kbd> | Download the highlighted game (or the selected ones) |
+| <kbd>Y</kbd> | Search |
+| <kbd>L1</kbd> <kbd>R1</kbd> | Page up / down |
+| <kbd>L2</kbd> <kbd>R2</kbd> | Previous / next console |
+| <kbd>Start</kbd> | Downloads |
+| <kbd>Select</kbd> | Show these buttons |
+| <kbd>L3</kbd> | Switch between list and grid |
+| <kbd>R3</kbd> | Games only (hide demos, betas and prototypes) |
 
 ## How it works
 
-Minerva publishes each console as one large torrent, often hundreds of gigabytes. Owlcart
-downloads only the game you choose:
+Minerva publishes each console as one big torrent, often hundreds of gigabytes. Here's how
+Owlcart gets just one game out of it:
 
-1. It reads the console's listing on minerva-archive.org. Each game's page gives the
-   console's `.torrent` and the game's position inside it.
-2. The `.torrent` is downloaded once and cached. Owlcart's built-in BitTorrent engine
-   ([librqbit](https://github.com/ikatson/rqbit)) fetches just that one file.
+1. It reads the console's listing on minerva-archive.org. Each game's page points to the
+   console's `.torrent` and says where the game sits inside it.
+2. It downloads the `.torrent` once and caches it, then the built-in BitTorrent engine
+   ([librqbit](https://github.com/ikatson/rqbit)) fetches only that one file.
 3. The game downloads into a hidden temporary folder. Torrent pieces overlap neighbouring
-   files, so small fragments of those get written too, and they're thrown away. Then the
-   game is moved into its console folder and unzipped.
+   files, so a few scraps of those come along too and get thrown away. Then the game is
+   moved into its console folder and unzipped.
 
-The engine handles one download per torrent at a time, so games from the same console queue
-up, while different consoles download in parallel.
+The engine handles one download per torrent at a time, so games from the same console wait
+their turn, while different consoles download side by side.
+
+Listing pages can be several megabytes, so Owlcart asks for them compressed and keeps a copy
+of each console it's opened. Next time that console shows straight away, and Owlcart quietly
+checks with the server whether anything changed (usually nothing has). On Android, the
+consoles either side of the current one are loaded ahead of time too, so flicking through
+them with <kbd>L2</kbd> <kbd>R2</kbd> is instant. A side effect is that consoles you've visited
+can still be browsed offline.
 
 ## Building from source
 
@@ -136,27 +209,50 @@ npm run tauri dev      # run in development
 npm run tauri build    # installers end up in src-tauri/target/release/bundle/
 ```
 
-**librqbit** is used from a local copy in `src-tauri/vendor/librqbit` with one change: a
-larger per-peer read buffer, needed for Minerva's very large torrents. See
-`OWLCART-CHANGES.md` there.
+**Android:** you'll also need the Android SDK and NDK (see Tauri's
+[Android prerequisites](https://v2.tauri.app/start/prerequisites/#android)). Then:
+
+```sh
+npm run tauri android build -- --apk --target aarch64
+```
+
+Release APKs are signed with the key named in `src-tauri/gen/android/keystore.properties`
+(`storeFile`, `keyAlias` and `password`; it isn't in git). Without that file the APK comes out
+unsigned. Every release has to use the same key, or Android won't install it as an update.
+
+librqbit lives in `src-tauri/vendor/librqbit` with a couple of small changes. Minerva's
+torrents are big enough that it needed a larger per-peer read buffer, and on Android it uses
+bundled root certificates for HTTPS. `OWLCART-CHANGES.md` in there has the details.
 
 ## Game data
 
-Cover art and game details come from [SteamGridDB](https://www.steamgriddb.com) and
-[IGDB](https://www.igdb.com). They're looked up once with your own free API keys and saved as
-static JSON, so the app never ships with a key.
+Box art comes first from the [libretro thumbnails](https://github.com/libretro-thumbnails/libretro-thumbnails)
+collection (the one RetroArch uses). It's sorted by system and named after the same No-Intro
+and Redump file names as Minerva, so an Xbox game gets the Xbox box, not the GBA one. Games it
+doesn't have fall back to [SteamGridDB](https://www.steamgriddb.com), then
+[IGDB](https://www.igdb.com), which also provides the game details. Everything is looked up
+ahead of time and saved as plain JSON, so the app itself never needs a key. The `data/`
+folder is also packed into each build, so covers and details work straight away, even before
+any hosted data is set up.
+
+IGDB is also how regional versions end up on one card. Each title is matched to an IGDB game,
+by its name or, for other languages, by the alternative names IGDB keeps (that's how
+*Demain ne Meurt Jamais* finds *Tomorrow Never Dies*). Titles with the same IGDB game are
+grouped.
 
 ```
 data/
 ├── index.json                       consoles, versions and counts
 └── <console>/
-    ├── covers.json                  title → cover (SteamGridDB, with IGDB as a fallback)
+    ├── covers.json                  title → cover (libretro, then SteamGridDB, then IGDB)
+    ├── games.json                   title → IGDB id, rating and review count (for grouping and sorting)
     └── details/00.json … ff.json    IGDB details, split into 256 small files by title hash
 ```
 
-The app loads a console's `covers.json` when you open it, and only the one small details file
-a game needs when you open its details. Downloads are cached on disk and only refreshed when
-that console's `updated` value in `index.json` changes, so browsing also works offline.
+When you open a console, the app loads its `covers.json` and `games.json`. Details are only
+fetched when you open a game, and then just the one small file it lives in. Everything is
+cached on disk and only refreshed when that console's `updated` value in `index.json` changes,
+so browsing works offline too.
 
 ### Fetching data
 
@@ -177,29 +273,38 @@ project's `data/` folder if you want to commit the results.
    npm run data                  # update every console that already has data
    ```
 
-   Re-runs only look up new titles and keep hand edits. `--retry-missing` retries titles that
-   found nothing, and `--verbose` prints each match.
+   Running it again only looks up new titles, and your hand edits are kept. A few options:
 
-`consoles.json` lists every console in the picker (group, name, ES-DE folder, Minerva link, IGDB
-platform). It ships inside the app, and consoles added to the hosted `index.json` later appear
-without an app update.
+   - `--retry-missing` has another go at titles that found nothing. It works in quick
+     batches and skips demos, betas and BIOS files, so even every console at once takes well
+     under an hour.
+   - `--refresh-ratings` updates ratings and review counts.
+   - `--libretro` swaps existing covers for libretro's wherever it has one.
+   - `--verbose` prints every match.
+
+   `npm run data:list` shows what you've got so far.
+
+`consoles.json` lists every console in the picker: its group, name, ES-DE folder, Minerva link,
+IGDB platform, libretro thumbnails folder and box shape. It ships inside the app, and consoles
+added to the hosted `index.json` later appear without an app update.
 
 ### Publishing data
 
-Host the `data/` folder (GitHub Pages works well) and set `DEFAULT_DATA_URL` in
-`src-tauri/src/jobs.rs`. Users can override it in Settings, and a local folder works too.
+Host the `data/` folder somewhere (GitHub Pages is fine) and set `DEFAULT_DATA_URL` in
+`src-tauri/src/jobs.rs`. People can point the app somewhere else in Settings, and a local
+folder works too.
 
 ## Releases
 
-Pushing to `main` with a version that hasn't been released yet builds Windows and Linux
-installers on GitHub Actions and publishes them as a release.
+Push to `main` with a version that hasn't been released yet, and GitHub Actions builds the
+Windows, Linux and Android versions and publishes them as a release.
 
 ```sh
 npm run bump -- patch     # or minor / major / 1.2.3: updates every version field
 git commit -am "Release v0.1.1" && git push
 ```
 
-Releases start as drafts and are only published once both builds succeed.
+Releases start as drafts and only go public once every build has succeeded.
 
 ## Tests
 
@@ -227,7 +332,14 @@ src-tauri/src/       Rust backend
   fetch.rs           in-app cover and details fetching
   covers.rs          SteamGridDB lookups and title matching
   extract.rs         safe .zip extraction
-scripts/             data builder and version bump
+  bundled.rs         game data shipped inside the app, unpacked on first run
+  second_screen.rs   dual-screen support (Android)
+  gamepad.rs         controller detection and rumble (Android)
+  folder_picker.rs   choosing a download folder (Android)
+src-tauri/gen/android/app/src/main/
+  java/dev/owlcart/app/   Kotlin side of the Android plugins, and MainActivity
+  assets/second-screen.html   the page shown on a second screen
+scripts/             data builder (libretro, SteamGridDB and IGDB lookups) and version bump
 data/                published covers and details
 consoles.json        consoles shown in the picker
 ```
@@ -236,8 +348,10 @@ consoles.json        consoles shown in the picker
 
 - Games are hosted by the [Minerva Archive](https://minerva-archive.org) community. Owlcart is an
   independent client and isn't affiliated with Minerva.
-- Game details from [IGDB.com](https://www.igdb.com). Cover art from [SteamGridDB](https://www.steamgriddb.com).
+- Game details from [IGDB.com](https://www.igdb.com). Box art from the
+  [libretro thumbnails](https://github.com/libretro-thumbnails/libretro-thumbnails) project and
+  [SteamGridDB](https://www.steamgriddb.com).
 - Downloads by [librqbit](https://github.com/ikatson/rqbit) (Apache-2.0). Flags from [flag-icons](https://github.com/lipis/flag-icons).
   Fonts: Space Grotesk and JetBrains Mono.
 
-Only download games you're entitled to under the laws where you live.
+Please only download games you're entitled to where you live.
