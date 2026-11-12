@@ -200,6 +200,28 @@ pub(crate) fn match_score(query: &str, candidate: &str) -> f64 {
     2.0 * sa.intersection(&sb).count() as f64 / (sa.len() + sb.len()) as f64
 }
 
+/// match_score for IGDB, whose search is already limited to the right
+/// platform: also accepts its name adding a word or two to all of ours
+/// ("007 - Tomorrow Never Dies" / "James Bond 007: Tomorrow Never Dies").
+/// Only for titles of 3+ words. Must match `igdbMatchScore` in src/lib/names.ts.
+pub(crate) fn igdb_match_score(query: &str, candidate: &str) -> f64 {
+    use std::collections::BTreeSet;
+    let score = match_score(query, candidate);
+    if score >= MATCH_THRESHOLD || score == 0.0 {
+        return score;
+    }
+    let (a, b): (BTreeSet<_>, BTreeSet<_>) = (
+        words(query).into_iter().collect(),
+        words(candidate).into_iter().collect(),
+    );
+    let extra = b.difference(&a).count();
+    if a.len() >= 3 && a.is_subset(&b) && extra <= 2 {
+        MATCH_THRESHOLD
+    } else {
+        score
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -218,5 +240,10 @@ mod tests {
             1.0
         );
         assert!(match_score("Agarest Senki Zero: Dawn of War", "Agarest Zero") < MATCH_THRESHOLD);
+        assert!(
+            igdb_match_score("007: Tomorrow Never Dies", "James Bond 007: Tomorrow Never Dies") >= MATCH_THRESHOLD
+        );
+        assert!(igdb_match_score("Halo 3", "Halo 3: ODST") < MATCH_THRESHOLD);
+        assert!(igdb_match_score("Agarest Senki Zero: Dawn of War", "Agarest Zero") < MATCH_THRESHOLD);
     }
 }

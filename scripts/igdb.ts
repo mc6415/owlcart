@@ -2,7 +2,7 @@
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { searchQuery, matchScore, MATCH_THRESHOLD } from "../src/lib/names.ts";
+import { searchQuery, igdbMatchScore, MATCH_THRESHOLD } from "../src/lib/names.ts";
 import { sleep } from "./common.ts";
 
 export interface GameDetails {
@@ -79,7 +79,10 @@ export async function igdb<T>(auth: Igdb, endpoint: string, body: string): Promi
       headers: { "Client-ID": auth.clientId, Authorization: `Bearer ${auth.token}` },
       body,
     });
-    if (res.status === 429 || res.status >= 500) {
+    // Too many requests, or too many queries in flight at once (a 400 that
+    // says "Too Many Concurrent queries"): wait and try again.
+    const busy = res.status === 400 && (await res.clone().text()).includes("Concurrent");
+    if (res.status === 429 || res.status >= 500 || busy) {
       if (attempt >= 5) throw new Error(`IGDB ${res.status} after retries`);
       await sleep(1000 * 2 ** attempt);
       continue;
@@ -115,6 +118,110 @@ const FIELDS = [
   "screenshots.image_id",
 ].join(",");
 
+/** The search result that best matches `query`, by its name or any of its
+ *  alternative names; null if none is close enough. */
+function pickBest(query: string, games: IgdbGame[]): IgdbGame | null {
+  let best: IgdbGame | null = null;
+  let bestScore = 0;
+  for (const g of games) {
+    for (const n of [g.name, ...(g.alternative_names ?? []).map((a) => a.name)]) {
+      const s = igdbMatchScore(query, n);
+      // On a tie (IGDB sometimes has two entries with the same name), take the
+      // one more people have reviewed: it's the one people mean.
+      const more = (g.total_rating_count ?? 0) > (best?.total_rating_count ?? 0);
+      if (s > bestScore || (s === bestScore && more)) [best, bestScore] = [g, s];
+    }
+  }
+  return bestScore >= MATCH_THRESHOLD ? best : null;
+}
+
+/** The part of a title that names the game, for searching alternative names:
+ *  "Demain ne Meurt Jamais" in "007: Demain ne Meurt Jamais". */
+function mainPart(query: string): string {
+  return query
+    .split(": ")
+    .sort((a, b) => b.length - a.length)[0]
+    .replace(/["\\*]/g, " ")
+    .trim();
+}
+
+const quote = (s: string) => s.replace(/["\\]/g, " ");
+
+function toDetails(g: IgdbGame): GameDetails {
+  const companies = g.involved_companies ?? [];
+  const d: GameDetails = { igdb: g.id, name: g.name };
+  if (g.summary) d.summary = g.summary;
+  if (g.first_release_date) d.released = new Date(g.first_release_date * 1000).toISOString().slice(0, 10);
+  if (g.genres?.length) d.genres = g.genres.map((x) => x.name);
+  const devs = companies.filter((c) => c.developer).map((c) => c.company.name);
+  const pubs = companies.filter((c) => c.publisher).map((c) => c.company.name);
+  if (devs.length) d.developers = devs;
+  if (pubs.length) d.publishers = pubs;
+  if (g.total_rating) {
+    d.rating = Math.round(g.total_rating);
+    d.ratingCount = g.total_rating_count ?? 0;
+  }
+  if (g.cover) d.cover = g.cover.image_id;
+  if (g.artworks?.length) d.artworks = g.artworks.slice(0, 4).map((a) => a.image_id);
+  if (g.screenshots?.length) d.screenshots = g.screenshots.slice(0, 8).map((x) => x.image_id);
+  return d;
+}
+
+/** Titles per multiquery request: two queries each, and IGDB allows ten. */
+export const IGDB_BATCH = 5;
+
+/**
+ * Another look for titles IGDB's search didn't find, up to IGDB_BATCH at
+ * once (null where nothing matched). Uses IGDB's multiquery, which can't
+ * search but can filter by name, so one request covers them all:
+ *
+ * - games on this platform whose name contains the title's main part, which
+ *   catches names with extra words ("James Bond 007: Tomorrow Never Dies"), and
+ * - alternative names containing it: the search skips most other-language
+ *   titles, but IGDB keeps them there ("James Bond 007 : Demain ne meurt
+ *   jamais" on Tomorrow Never Dies), so regional versions get the same game
+ *   and the app can group them.
+ *
+ * Either way it still needs a proper name match (igdbMatchScore).
+ */
+export async function igdbDetailsMany(
+  auth: Igdb,
+  platformId: number,
+  titles: string[],
+  verbose = false,
+): Promise<Map<string, GameDetails | null>> {
+  const queries = titles.map(searchQuery);
+  const gameFields = FIELDS.split(",")
+    .map((f) => `game.${f}`)
+    .join(",");
+  const body = queries
+    .flatMap((q, i) => {
+      const part = mainPart(q);
+      if (part.length < 4) return [];
+      return [
+        `query games "g${i}" { fields ${FIELDS}; where name ~ *"${part}"* & platforms = (${platformId}); limit 15; };`,
+        `query alternative_names "a${i}" { fields ${gameFields}; where name ~ *"${part}"* & game.platforms = (${platformId}); limit 25; };`,
+      ];
+    })
+    .join("\n");
+  const candidates = new Map<number, IgdbGame[]>();
+  if (body) {
+    const res = await igdb<{ name: string; result: (IgdbGame | { game: IgdbGame })[] }[]>(auth, "multiquery", body);
+    for (const r of res) {
+      const i = Number(r.name.slice(1));
+      const games = r.result.map((x) => ("game" in x ? x.game : x)).filter((g) => g && typeof g === "object");
+      candidates.set(i, [...(candidates.get(i) ?? []), ...games]);
+    }
+  }
+  const out = new Map<string, GameDetails | null>();
+  titles.forEach((t, i) => {
+    const g = pickBest(queries[i], candidates.get(i) ?? []);
+    if (verbose) console.log(g ? `  [igdb] ${t}  ->  ${g.name}` : `  [igdb] ${t}  ->  (no match)`);
+    out.set(t, g ? toDetails(g) : null);
+  });
+  return out;
+}
+
 export async function igdbDetails(
   auth: Igdb,
   platformId: number,
@@ -125,40 +232,15 @@ export async function igdbDetails(
   const games = await igdb<IgdbGame[]>(
     auth,
     "games",
-    `search "${query.replace(/["\\]/g, " ")}"; fields ${FIELDS}; where platforms = (${platformId}); limit 15;`,
+    `search "${quote(query)}"; fields ${FIELDS}; where platforms = (${platformId}); limit 15;`,
   );
-  // Score against the main name and every alternative name; keep the best.
-  let best: IgdbGame | undefined;
-  let bestScore = 0;
-  for (const g of games) {
-    for (const n of [g.name, ...(g.alternative_names ?? []).map((a) => a.name)]) {
-      const s = matchScore(query, n);
-      // On a tie (IGDB sometimes has two entries with the same name), take the
-      // one more people have reviewed: it's the one people mean.
-      const more = (g.total_rating_count ?? 0) > (best?.total_rating_count ?? 0);
-      if (s > bestScore || (s === bestScore && more)) [best, bestScore] = [g, s];
-    }
+  const best = pickBest(query, games);
+  if (best) {
+    if (verbose) console.log(`  [igdb] ${title}  ->  ${best.name}`);
+    return toDetails(best);
   }
-  if (!best || bestScore < MATCH_THRESHOLD) return null;
-  if (verbose) console.log(`  [igdb] ${title}  ->  ${best.name} (${bestScore.toFixed(2)})`);
-
-  const companies = best.involved_companies ?? [];
-  const d: GameDetails = { igdb: best.id, name: best.name };
-  if (best.summary) d.summary = best.summary;
-  if (best.first_release_date) d.released = new Date(best.first_release_date * 1000).toISOString().slice(0, 10);
-  if (best.genres?.length) d.genres = best.genres.map((g) => g.name);
-  const devs = companies.filter((c) => c.developer).map((c) => c.company.name);
-  const pubs = companies.filter((c) => c.publisher).map((c) => c.company.name);
-  if (devs.length) d.developers = devs;
-  if (pubs.length) d.publishers = pubs;
-  if (best.total_rating) {
-    d.rating = Math.round(best.total_rating);
-    d.ratingCount = best.total_rating_count ?? 0;
-  }
-  if (best.cover) d.cover = best.cover.image_id;
-  if (best.artworks?.length) d.artworks = best.artworks.slice(0, 4).map((a) => a.image_id);
-  if (best.screenshots?.length) d.screenshots = best.screenshots.slice(0, 8).map((s) => s.image_id);
-  return d;
+  // Not found by searching: try by name and alternative name.
+  return (await igdbDetailsMany(auth, platformId, [title], verbose)).get(title) ?? null;
 }
 
 interface RatedGame {

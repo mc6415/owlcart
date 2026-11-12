@@ -1,7 +1,7 @@
 //! Published game data (built by scripts/build-data.ts):
 //!
 //!   <base>/index.json                     consoles and their `updated` versions
-//!   <base>/<slug>/covers.json             title -> cover ref ("s:..." / "i:..." / URL) or null
+//!   <base>/<slug>/covers.json             title -> cover ref ("l:..." / "s:..." / "i:..." / URL) or null
 //!   <base>/<slug>/details/<00-ff>.json    title -> IGDB details or null
 //!   <base>/<slug>/games.json              title -> [IGDB id] or [IGDB id, rating, review count]
 //!
@@ -49,7 +49,10 @@ pub fn title_bucket(title: &str) -> String {
 
 /// Expands a compact cover reference. Must match `coverUrl` in src/lib/names.ts.
 pub fn cover_url(r: &str) -> String {
-    if let Some(p) = r.strip_prefix("s:") {
+    if let Some((system, file)) = r.strip_prefix("l:").and_then(|p| p.split_once('/')) {
+        let enc = |s: &str| url::form_urlencoded::byte_serialize(s.as_bytes()).collect::<String>().replace('+', "%20");
+        format!("https://thumbnails.libretro.com/{}/Named_Boxarts/{}.png", enc(system), enc(file))
+    } else if let Some(p) = r.strip_prefix("s:") {
         format!("https://cdn2.steamgriddb.com/{p}")
     } else if let Some(id) = r.strip_prefix("i:") {
         format!("https://images.igdb.com/igdb/image/upload/t_cover_big/{id}.jpg")
@@ -272,6 +275,10 @@ mod tests {
             "https://images.igdb.com/igdb/image/upload/t_cover_big/abc.jpg"
         );
         assert_eq!(cover_url("https://x/y.png"), "https://x/y.png");
+        assert_eq!(
+            cover_url("l:Microsoft - Xbox/Tron 2.0 - Killer App (USA)"),
+            "https://thumbnails.libretro.com/Microsoft%20-%20Xbox/Named_Boxarts/Tron%202.0%20-%20Killer%20App%20%28USA%29.png"
+        );
     }
 
     #[tokio::test]
