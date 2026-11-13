@@ -38,6 +38,10 @@ librqbit = { version = "9.1.0", default-features = false, features = ["rust-tls"
 ruzstd = "0.9.1"
 
 
+# Raising the open-files limit (see raise_open_files_limit in lib.rs).
+[target.'cfg(unix)'.dependencies]
+rlimit = "0.11"
+
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
 codegen-units = 1

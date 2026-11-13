@@ -245,8 +245,21 @@ fn reveal_file(app: tauri::AppHandle, path: String) -> Res<()> {
         .map_err(|e| e.to_string())
 }
 
+/// The download engine opens every file in a torrent when adding it, not
+/// just the one game being fetched, and some consoles' torrents hold
+/// thousands. Apps started from a Linux desktop usually get a soft limit of
+/// 1024 open files ("Too many open files"), so raise it to the most the
+/// system allows, as torrent clients do.
+fn raise_open_files_limit() {
+    #[cfg(unix)]
+    if let Err(e) = rlimit::increase_nofile_limit(u64::MAX) {
+        eprintln!("couldn't raise the open files limit: {e}");
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    raise_open_files_limit();
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -310,4 +323,16 @@ pub fn run() {
                 tauri::async_runtime::block_on(mgr.shutdown());
             }
         });
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    /// Run with a low limit to see it raised, the way a desktop launch sets it:
+    /// prlimit --nofile=1024:65536 cargo test open_files
+    #[test]
+    fn open_files_limit_is_raised() {
+        super::raise_open_files_limit();
+        let (soft, hard) = rlimit::Resource::NOFILE.get().unwrap();
+        assert!(soft > 1024 || hard <= 1024, "soft {soft}, hard {hard}");
+    }
 }
